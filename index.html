@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<h1>🔥 Suivi granulés <span class="small">v3</span></h1>
+<h1>🔥 Suivi granulés <span class="small">v4</span></h1>
 
 <div class="card">
  <div class="small">Saison en cours : <span id="saisonNom">aucune</span></div>
@@ -110,9 +110,42 @@
 
 <script>
 const CLE='granules_v1';
+function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
-function normaliser(){d.recharges=d.recharges||[];d.achats=d.achats||[];d.saisons=d.saisons||[];d.salon=d.salon||{};}
+function num(v){v=parseFloat(String(v??'').replace(',','.'));return isFinite(v)?v:null;}
+function dateIso(t){return typeof t==='number'?new Date(t).toISOString():t;}
+// Remet au bon format les données enregistrées par les anciennes versions (sinon NaN dans le stock)
+function normaliser(){
+ if(!d||typeof d!=='object')d={};
+ d.recharges=Array.isArray(d.recharges)?d.recharges:[];
+ d.achats=Array.isArray(d.achats)?d.achats:[];
+ d.saisons=Array.isArray(d.saisons)?d.saisons:[];
+ const poidsDefaut=num(d.reglages&&d.reglages.kgSac)||15;
+ if(d.saisonEnCours){d.saisons.push(Object.assign({},d.saisonEnCours,{fin:null}));delete d.saisonEnCours;}
+ d.saisons.forEach(s=>{s.debut=dateIso(s.debut);s.fin=s.fin?dateIso(s.fin):null;});
+ d.achats.forEach(a=>{
+  a.t=dateIso(a.t);
+  a.nb=num(a.nb??a.sacs)??0;
+  a.poids=num(a.poids)??poidsDefaut;
+  a.prix=num(a.prix??a.prixSac)??0;
+  delete a.sacs;delete a.prixSac;
+ });
+ d.recharges.forEach(r=>{
+  r.t=dateIso(r.t);
+  r.kg=num(r.kg)??0;
+  if(r.prix==null&&num(r.cout)!=null&&r.kg)r.prix=num(r.cout)/r.kg;
+  if(r.ext==null&&r.tExt!=null)r.ext=r.tExt;
+  if(typeof r.saison==='number'){const s=d.saisons.find(x=>x.id===r.saison);r.saison=s?s.nom:null;}
+ });
+ if(Array.isArray(d.salon)){
+  const o={};
+  d.salon.forEach(m=>{const t=new Date(m.t),v=num(m.v);if(!isNaN(t)&&v!=null)o[t.getFullYear()+'-'+p2(t.getMonth()+1)+'-'+p2(t.getDate())+' '+p2(t.getHours())+':'+p2(t.getMinutes())]=[v,null];});
+  d.salon=o;
+ }
+ if(!d.salon||typeof d.salon!=='object')d.salon={};
+}
 normaliser();
+localStorage.setItem(CLE,JSON.stringify(d));
 let temperatureExt=null;
 function sauver(){localStorage.setItem(CLE,JSON.stringify(d));afficher();}
 function saisonActive(){return d.saisons.find(s=>!s.fin);}
@@ -187,7 +220,9 @@ function afficher(){
  const kgAchetes=d.achats.reduce((a,x)=>a+x.nb*x.poids,0);
  const kgUtilises=d.recharges.reduce((a,x)=>a+x.kg,0);
  const kgStock=Math.max(0,kgAchetes-kgUtilises);
- stockSacs.textContent=(kgStock/15).toFixed(1);
+ const nbSacs=d.achats.reduce((a,x)=>a+x.nb,0);
+ const poidsSac=nbSacs?kgAchetes/nbSacs:15;
+ stockSacs.textContent=(kgStock/poidsSac).toFixed(1);
  stockKg.textContent=kgStock.toFixed(1)+' kg restants';
  let ha='<tr><th>Date</th><th>Sacs</th><th>Prix</th><th></th></tr>';
  d.achats.forEach((a,i)=>{
@@ -242,7 +277,6 @@ function importer(e){
 
 /* ---- Température du salon (CSV Tempro) ---- */
 const RE_LIGNE=/^\s*"?(\d{1,2})\/(\d{1,2})\/(\d{4})"?\s*[,;]\s*"?(\d{1,2}):(\d{2})(?::\d{2})?"?\s*[,;]\s*"?(-?\d+(?:[.,]\d+)?)"?\s*(?:[,;]\s*"?(\d+(?:[.,]\d+)?)"?)?\s*$/;
-function p2(n){return String(n).padStart(2,'0');}
 function importerTempro(e){
  const f=e.target.files[0];
  if(!f)return;
