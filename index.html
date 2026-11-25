@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Granulés">
+<title>Granulés</title>
+<style>
+  :root { --bg:#f4f1ec; --card:#fff; --txt:#222; --acc:#c2410c; --ok:#15803d; --warn:#b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:env(safe-area-inset-top) 12px 40px; font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--txt); }
+  h1 { font-size:22px; margin:14px 0 8px; }
+  h2 { font-size:17px; margin:0 0 10px; }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin:12px 0; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .big { width:100%; padding:18px; font-size:20px; font-weight:600; border:0; border-radius:14px; background:var(--acc); color:#fff; }
+  button { font-size:16px; padding:10px 14px; border-radius:10px; border:1px solid #ccc; background:#fafafa; }
+  input, select { font-size:16px; padding:8px; border:1px solid #ccc; border-radius:8px; width:100%; margin:4px 0 10px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .alert { background:#fee2e2; color:var(--warn); padding:10px; border-radius:10px; font-weight:600; display:none; }
+  .stat { font-size:26px; font-weight:700; } .lbl { font-size:13px; color:#666; }
+  table { width:100%; border-collapse:collapse; font-size:14px; } td, th { padding:6px 4px; border-bottom:1px solid #eee; text-align:left; }
+</style>
+</head>
+<body>
+<h1>🔥 Granulés</h1>
+<div id="alerte" class="alert"></div>
+
+<div class="card">
+  <div class="row">
+    <div><div class="stat" id="stockKg">0 kg</div><div class="lbl">Stock restant</div></div>
+    <div><div class="stat" id="prixKg">0 €/kg</div><div class="lbl">Prix moyen</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Recharger le poêle</h2>
+  <div class="row">
+    <div><label class="lbl">Récipients</label><input id="nbRec" type="number" value="1" min="1"></div>
+    <div><label class="lbl">Consigne °C</label><input id="consigne" type="number" value="19" step="0.5"></div>
+  </div>
+  <button class="big" onclick="recharger()">J'ai rechargé le poêle</button>
+</div>
+
+<div class="card">
+  <h2>Acheter des sacs</h2>
+  <div class="row">
+    <div><label class="lbl">Nombre de sacs</label><input id="achNb" type="number" value="3" min="1"></div>
+    <div><label class="lbl">Prix du sac (€)</label><input id="achPrix" type="number" value="6.50" step="0.01"></div>
+  </div>
+  <button onclick="acheter()">Enregistrer l'achat</button>
+</div>
+
+<div class="card">
+  <h2>Réglages</h2>
+  <div class="row">
+    <div><label class="lbl">Poids d'un sac (kg)</label><input id="kgSac" type="number" value="15"></div>
+    <div><label class="lbl">Poids d'un récipient (kg)</label><input id="kgRec" type="number" value="0.9" step="0.05"></div>
+  </div>
+  <label class="lbl">Alerte stock bas (en sacs)</label><input id="seuil" type="number" value="1" step="0.5">
+  <button onclick="sauverReglages()">Enregistrer les réglages</button>
+</div>
+
+<div class="card">
+  <h2>Derniers rechargements</h2>
+  <table id="tabRec"></table>
+</div>
+
+<script>
+const K = 'granules_v1';
+let D = JSON.parse(localStorage.getItem(K) || 'null') || {
+  reglages:{kgSac:15, kgRec:0.9, seuil:1},
+  achats:[],      // {t, sacs, prixSac}
+  recharges:[],   // {t, nb, kg, consigne, cout}
+  saisons:[], saisonEnCours:null, arrets:[]
+};
+const save = () => localStorage.setItem(K, JSON.stringify(D));
+
+function stock() {
+  const achete = D.achats.reduce((s,a)=>s+a.sacs*D.reglages.kgSac,0);
+  const brule = D.recharges.reduce((s,r)=>s+r.kg,0);
+  return Math.max(0, achete - brule);
+}
+function prixMoyenKg() {
+  const kg = D.achats.reduce((s,a)=>s+a.sacs*D.reglages.kgSac,0);
+  const eur = D.achats.reduce((s,a)=>s+a.sacs*a.prixSac,0);
+  return kg ? eur/kg : 0;
+}
+function acheter() {
+  const sacs = +achNb.value, prixSac = +achPrix.value;
+  if (!sacs || !prixSac) return;
+  D.achats.push({t:Date.now(), sacs, prixSac});
+  save(); afficher();
+}
+function recharger() {
+  const nb = +nbRec.value || 1;
+  const kg = nb * D.reglages.kgRec;
+  D.recharges.push({t:Date.now(), nb, kg, consigne:+consigne.value, cout:kg*prixMoyenKg()});
+  save(); afficher();
+}
+function sauverReglages() {
+  D.reglages = {kgSac:+kgSac.value, kgRec:+kgRec.value, seuil:+seuil.value};
+  save(); afficher();
+}
+function afficher() {
+  const s = stock();
+  stockKg.textContent = s.toFixed(1) + ' kg';
+  prixKg.textContent = prixMoyenKg().toFixed(3) + ' €/kg';
+  kgSac.value = D.reglages.kgSac; kgRec.value = D.reglages.kgRec; seuil.value = D.reglages.seuil;
+  const bas = s < D.reglages.seuil * D.reglages.kgSac;
+  alerte.style.display = bas ? 'block' : 'none';
+  alerte.textContent = '⚠️ Stock bas : pense à racheter des sacs';
+  const lignes = D.recharges.slice(-8).reverse().map(r => {
+    const d = new Date(r.t);
+    return `<tr><td>${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td><td>${r.kg.toFixed(1)} kg</td><td>${r.cout.toFixed(2)} €</td></tr>`;
+  }).join('');
+  tabRec.innerHTML = '<tr><th>Date</th><th>Quantité</th><th>Coût</th></tr>' + lignes;
+}
+afficher();
+</script>
+</body>
+</html>
