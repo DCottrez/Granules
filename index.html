@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Granulés">
 <title>Granulés</title>
 <style>
-  :root { --bg:#f4f1ec; --card:#fff; --txt:#222; --acc:#c2410c; --ok:#15803d; --warn:#b91c1c; }
+  :root { --bg:#f4f1ec; --card:#fff; --txt:#222; --acc:#c2410c; --warn:#b91c1c; }
   * { box-sizing: border-box; }
   body { margin:0; padding:env(safe-area-inset-top) 12px 40px; font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--txt); }
   h1 { font-size:22px; margin:14px 0 8px; }
@@ -43,12 +43,28 @@
 </div>
 
 <div class="card">
+  <h2>Saison et météo</h2>
+  <div class="row">
+    <div><div class="stat" id="tExt">-- °C</div><div class="lbl">Température extérieure</div></div>
+    <div><div class="stat" id="saisonNom">Aucune</div><div class="lbl">Saison en cours</div></div>
+  </div>
+  <label class="lbl">Ville de secours</label>
+  <input id="ville" placeholder="ex : Lyon">
+  <button onclick="sauverVille()">Enregistrer la ville</button>
+  <div class="row" style="margin-top:10px">
+    <button onclick="demarrerSaison()">Démarrer la saison</button>
+    <button onclick="cloturerSaison()">Clôturer la saison</button>
+  </div>
+</div>
+
+<div class="card">
   <h2>Acheter des sacs</h2>
   <div class="row">
     <div><label class="lbl">Nombre de sacs</label><input id="achNb" type="number" value="3" min="1"></div>
     <div><label class="lbl">Prix du sac (€)</label><input id="achPrix" type="number" value="6.50" step="0.01"></div>
   </div>
   <button onclick="acheter()">Enregistrer l'achat</button>
+  <table id="tabAch" style="margin-top:10px"></table>
 </div>
 
 <div class="card">
@@ -66,16 +82,38 @@
   <table id="tabRec"></table>
 </div>
 
+<div class="card">
+  <h2>Consommation</h2>
+  <select id="periode" onchange="stats()">
+    <option value="semaine">Par semaine</option>
+    <option value="mois">Par mois</option>
+    <option value="saison">Par saison</option>
+  </select>
+  <canvas id="gBarres" width="340" height="200" style="width:100%"></canvas>
+  <table id="tabStats"></table>
+</div>
+
+<div class="card">
+  <h2>Kilos par jour selon la température extérieure</h2>
+  <canvas id="gNuage" width="340" height="220" style="width:100%"></canvas>
+</div>
+
+<div class="card">
+  <h2>Salon : température réelle et consigne</h2>
+  <p class="lbl">Importe l'export CSV de Tempro Sensor (enregistré dans Fichiers).</p>
+  <input id="fichierCsv" type="file" accept=".csv,text/csv,text/plain" onchange="importerCsv(this)">
+  <canvas id="gSalon" width="340" height="200" style="width:100%"></canvas>
+</div>
+
 <script>
 const K = 'granules_v1';
 let D = JSON.parse(localStorage.getItem(K) || 'null') || {
   reglages:{kgSac:15, kgRec:0.9, seuil:1},
-  achats:[],      // {t, sacs, prixSac}
-  recharges:[],   // {t, nb, kg, consigne, cout}
-  saisons:[], saisonEnCours:null, arrets:[]
+  achats:[], recharges:[], saisons:[], saisonEnCours:null, salon:[], ville:'', derniereCoord:null
 };
 const save = () => localStorage.setItem(K, JSON.stringify(D));
 
+// ---------- Stock, achats, rechargements ----------
 function stock() {
   const achete = D.achats.reduce((s,a)=>s+a.sacs*D.reglages.kgSac,0);
   const brule = D.recharges.reduce((s,r)=>s+r.kg,0);
@@ -90,17 +128,19 @@ function acheter() {
   const sacs = +achNb.value, prixSac = +achPrix.value;
   if (!sacs || !prixSac) return;
   D.achats.push({t:Date.now(), sacs, prixSac});
-  save(); afficher();
+  save(); afficher(); stats();
 }
-function recharger() {
+async function recharger() {
   const nb = +nbRec.value || 1;
   const kg = nb * D.reglages.kgRec;
-  D.recharges.push({t:Date.now(), nb, kg, consigne:+consigne.value, cout:kg*prixMoyenKg()});
-  save(); afficher();
+  const t = await temperatureExterieure();
+  D.recharges.push({t:Date.now(), nb, kg, consigne:+consigne.value,
+    cout:kg*prixMoyenKg(), tExt:t, saison:D.saisonEnCours ? D.saisonEnCours.id : null});
+  save(); afficher(); stats(); courbeSalon();
 }
 function sauverReglages() {
   D.reglages = {kgSac:+kgSac.value, kgRec:+kgRec.value, seuil:+seuil.value};
-  save(); afficher();
+  save(); afficher(); stats();
 }
 function afficher() {
   const s = stock();
@@ -110,13 +150,180 @@ function afficher() {
   const bas = s < D.reglages.seuil * D.reglages.kgSac;
   alerte.style.display = bas ? 'block' : 'none';
   alerte.textContent = '⚠️ Stock bas : pense à racheter des sacs';
+  afficherAchats();
   const lignes = D.recharges.slice(-8).reverse().map(r => {
     const d = new Date(r.t);
     return `<tr><td>${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td><td>${r.kg.toFixed(1)} kg</td><td>${r.cout.toFixed(2)} €</td></tr>`;
   }).join('');
   tabRec.innerHTML = '<tr><th>Date</th><th>Quantité</th><th>Coût</th></tr>' + lignes;
 }
-afficher();
+
+// ---------- Liste des achats, avec suppression d'une saisie par erreur ----------
+function afficherAchats() {
+  const lignes = D.achats.slice(-8).reverse().map(a => {
+    const d = new Date(a.t);
+    return `<tr><td>${d.toLocaleDateString('fr-FR')}</td><td>${a.sacs} sac${a.sacs > 1 ? 's' : ''}</td><td>${(a.sacs * a.prixSac).toFixed(2)} €</td><td><button style="padding:4px 8px" onclick="supprimerAchat(${a.t})">🗑️</button></td></tr>`;
+  }).join('');
+  tabAch.innerHTML = D.achats.length ? '<tr><th>Date</th><th>Quantité</th><th>Total</th><th></th></tr>' + lignes : '';
+}
+function supprimerAchat(t) {
+  const a = D.achats.find(x => x.t === t); if (!a) return;
+  const d = new Date(t).toLocaleDateString('fr-FR');
+  if (!confirm(`Supprimer l'achat du ${d} : ${a.sacs} sac(s) à ${a.prixSac} € ?`)) return;
+  D.achats = D.achats.filter(x => x.t !== t);
+  save(); afficher(); stats();
+}
+
+// ---------- Météo : position de l'iPhone, sinon ville de secours (Open-Meteo, sans clé) ----------
+async function meteoPour(lat, lon) {
+  const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`;
+  const j = await (await fetch(u)).json();
+  return j.current.temperature_2m;
+}
+function position() {
+  return new Promise((ok, ko) => navigator.geolocation
+    ? navigator.geolocation.getCurrentPosition(p => ok(p.coords), ko, {timeout:6000}) : ko());
+}
+async function temperatureExterieure() {
+  try {
+    const c = await position();
+    D.derniereCoord = {lat:c.latitude, lon:c.longitude};
+    save();
+    return await meteoPour(c.latitude, c.longitude);
+  } catch (e) {
+    try {
+      if (D.derniereCoord) return await meteoPour(D.derniereCoord.lat, D.derniereCoord.lon);
+      if (D.ville) {
+        const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(D.ville)}&count=1&language=fr`)).json();
+        const l = g.results[0];
+        return await meteoPour(l.latitude, l.longitude);
+      }
+    } catch (e2) {}
+    return null;
+  }
+}
+async function majMeteo() {
+  const t = await temperatureExterieure();
+  tExt.textContent = t === null ? '-- °C' : t.toFixed(1) + ' °C';
+}
+function sauverVille() { D.ville = ville.value.trim(); D.derniereCoord = null; save(); majMeteo(); }
+
+// ---------- Saisons : c'est toi qui démarres et clôtures ----------
+function demarrerSaison() {
+  if (D.saisonEnCours) { alert('Une saison est déjà en cours.'); return; }
+  const nom = prompt('Nom de la saison', 'Hiver ' + new Date().getFullYear());
+  if (!nom) return;
+  D.saisonEnCours = {id:Date.now(), nom, debut:Date.now()};
+  save(); afficherSaison(); stats();
+}
+function cloturerSaison() {
+  if (!D.saisonEnCours) return;
+  if (!confirm('Clôturer la saison ' + D.saisonEnCours.nom + ' ?')) return;
+  D.saisonEnCours.fin = Date.now();
+  D.saisons.push(D.saisonEnCours); D.saisonEnCours = null;
+  save(); afficherSaison(); stats();
+}
+function afficherSaison() {
+  saisonNom.textContent = D.saisonEnCours ? D.saisonEnCours.nom : 'Aucune';
+}
+
+// ---------- Statistiques ----------
+function cle(t, mode) {
+  const d = new Date(t);
+  if (mode === 'mois') return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  if (mode === 'saison') {
+    const s = [...D.saisons, D.saisonEnCours].filter(Boolean).find(s => t >= s.debut && (!s.fin || t <= s.fin));
+    return s ? s.nom : 'Hors saison';
+  }
+  const j = (d.getDay() + 6) % 7;
+  const l = new Date(d.getFullYear(), d.getMonth(), d.getDate() - j);
+  return l.toISOString().slice(0,10);
+}
+function stats() {
+  const mode = periode.value, g = {};
+  D.recharges.forEach(r => {
+    const k = cle(r.t, mode);
+    g[k] = g[k] || {kg:0, eur:0};
+    g[k].kg += r.kg; g[k].eur += r.cout;
+  });
+  const cles = Object.keys(g).sort().slice(-12);
+  tabStats.innerHTML = '<tr><th>Période</th><th>Kilos</th><th>Sacs</th><th>Coût</th></tr>' +
+    cles.map(k => `<tr><td>${k}</td><td>${g[k].kg.toFixed(1)}</td><td>${(g[k].kg/D.reglages.kgSac).toFixed(1)}</td><td>${g[k].eur.toFixed(2)} €</td></tr>`).join('');
+  barres(gBarres, cles, cles.map(k => g[k].kg));
+  nuage();
+}
+
+// ---------- Graphiques (canvas, sans bibliothèque) ----------
+function barres(cv, etiq, vals) {
+  const c = cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+  if (!vals.length) return;
+  const max = Math.max(...vals, 1), w = cv.width / vals.length;
+  c.font = '10px sans-serif';
+  vals.forEach((v,i) => {
+    const h = (v / max) * (cv.height - 40);
+    c.fillStyle = '#c2410c';
+    c.fillRect(i*w + 4, cv.height - 25 - h, w - 8, h);
+    c.fillStyle = '#222';
+    c.fillText(v.toFixed(1), i*w + 4, cv.height - 28 - h);
+    c.fillText(String(etiq[i]).slice(-5), i*w + 4, cv.height - 10);
+  });
+}
+function nuage() {
+  const cv = gNuage, c = cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+  const j = {};
+  D.recharges.forEach(r => {
+    if (r.tExt === null || r.tExt === undefined) return;
+    const k = new Date(r.t).toISOString().slice(0,10);
+    j[k] = j[k] || {kg:0, ts:[]}; j[k].kg += r.kg; j[k].ts.push(r.tExt);
+  });
+  const pts = Object.values(j).map(o => ({x:o.ts.reduce((a,b)=>a+b,0)/o.ts.length, y:o.kg}));
+  if (!pts.length) return;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const x0 = Math.min(...xs)-1, x1 = Math.max(...xs)+1, y1 = Math.max(...ys)*1.1;
+  c.font = '10px sans-serif'; c.fillStyle = '#222';
+  c.fillText('kg/jour', 4, 12); c.fillText('°C extérieur →', cv.width-80, cv.height-4);
+  pts.forEach(p => {
+    const X = 20 + (p.x - x0)/(x1 - x0) * (cv.width - 40);
+    const Y = cv.height - 20 - (p.y / y1) * (cv.height - 40);
+    c.fillStyle = '#c2410c'; c.beginPath(); c.arc(X, Y, 4, 0, 7); c.fill();
+  });
+}
+
+// ---------- Import des relevés Tempro Sensor ----------
+// Format supposé : en-tête, puis date, température (séparateur , ou ;). À ajuster avec un vrai export.
+function importerCsv(inp) {
+  const f = inp.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const lignes = rd.result.split(/\r?\n/).slice(1).filter(Boolean);
+    D.salon = lignes.map(l => {
+      const p = l.split(/[;,]/);
+      const t = new Date(p[0]).getTime();
+      const v = parseFloat(String(p[1]).replace(',', '.'));
+      return isNaN(t) || isNaN(v) ? null : {t, v};
+    }).filter(Boolean);
+    save(); courbeSalon();
+  };
+  rd.readAsText(f);
+}
+function courbeSalon() {
+  const cv = gSalon, c = cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+  const s = D.salon || []; if (s.length < 2) return;
+  const t0 = s[0].t, t1 = s[s.length-1].t;
+  const vs = s.map(p=>p.v), mn = Math.min(...vs, 17)-1, mx = Math.max(...vs, 21)+1;
+  const X = t => 20 + (t - t0)/(t1 - t0) * (cv.width - 30);
+  const Y = v => cv.height - 20 - (v - mn)/(mx - mn) * (cv.height - 40);
+  c.strokeStyle = '#2563eb'; c.beginPath();
+  s.forEach((p,i) => i ? c.lineTo(X(p.t),Y(p.v)) : c.moveTo(X(p.t),Y(p.v))); c.stroke();
+  c.fillStyle = '#c2410c';
+  D.recharges.filter(r => r.t >= t0 && r.t <= t1).forEach(r => { c.beginPath(); c.arc(X(r.t), Y(r.consigne), 3, 0, 7); c.fill(); });
+  c.fillStyle = '#222'; c.font = '10px sans-serif';
+  c.fillText('bleu : salon, orange : consigne', 20, 12);
+}
+
+// ---------- Démarrage ----------
+ville.value = D.ville || '';
+afficher(); afficherSaison(); stats(); courbeSalon(); majMeteo();
 </script>
 </body>
-</html>
+</html>  
