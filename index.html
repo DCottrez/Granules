@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<h1>🔥 Suivi granulés <span class="small">v5</span></h1>
+<h1>🔥 Suivi granulés <span class="small">v5.3</span></h1>
 
 <div class="card">
  <div class="small">Saison en cours : <span id="saisonNom">aucune</span></div>
@@ -38,13 +38,18 @@
 
 <div class="card">
  <h2>Rechargement</h2>
- <label>Quantité (kg)</label>
- <input id="recKg" type="number" step="0.01" value="0.86">
+ <label>Nombre de récipients</label>
+ <input id="recNb" type="number" min="1" step="1" value="1" inputmode="numeric" oninput="majTotalRec()">
+ <label>Poids d'un récipient (kg)</label>
+ <input id="recKg" type="number" step="0.01" value="0.86" oninput="majTotalRec()">
+ <div class="small" id="totalRec"></div>
  <label>Consigne (°C)</label>
  <input id="recConsigne" type="number" step="0.5" value="19">
  <label>Température du salon (°C, facultatif)</label>
  <input id="recSalon" type="number" step="0.1">
  <button onclick="recharger()">Recharger maintenant</button>
+ <div id="confirmRec" style="font-weight:bold;color:#2a7;margin-top:6px"></div>
+ <button class="sec" id="btnAnnuler" onclick="annulerDernier()" style="display:none;margin-top:8px"></button>
 </div>
 
 <div class="card">
@@ -154,13 +159,44 @@ function prixMoyen(){
  d.achats.forEach(a=>{kg+=a.nb*a.poids;eur+=a.nb*a.prix;});
  return kg?eur/kg:0;
 }
+function dernierLibelle(r){
+ const dt=new Date(r.t);
+ return dt.toLocaleDateString('fr-FR')+' '+p2(dt.getHours())+':'+p2(dt.getMinutes())+', '+String(r.kg).replace('.',',')+' kg';
+}
+function majAnnuler(){
+ const b=document.getElementById('btnAnnuler');
+ const r=d.recharges[d.recharges.length-1];
+ if(!r){b.style.display='none';return;}
+ b.style.display='';
+ b.textContent='↩ Annuler le dernier rechargement ('+dernierLibelle(r)+')';
+}
+function annulerDernier(){
+ const r=d.recharges[d.recharges.length-1];
+ if(!r)return;
+ if(confirm('Annuler le rechargement du '+dernierLibelle(r)+' ?\nLes '+String(r.kg).replace('.',',')+' kg seront remis dans le stock.')){
+  d.recharges.pop();
+  sauver();
+  confirmRec.textContent='↩ Rechargement annulé ('+dernierLibelle(r)+')';
+ }
+}
+function majTotalRec(){
+ const nb=Math.round(num(recNb.value)||0),poids=num(recKg.value)||0;
+ document.getElementById('totalRec').textContent=nb>0&&poids>0?'Total : '+(nb*poids).toFixed(2).replace('.',',')+' kg':'';
+}
 function recharger(){
- const kg=parseFloat(recKg.value);
- if(!kg)return;
- const s=saisonActive();
- d.recharges.push({t:new Date().toISOString(),kg:kg,consigne:parseFloat(recConsigne.value)||null,salon:parseFloat(recSalon.value)||null,ext:temperatureExt,prix:prixMoyen(),saison:s?s.nom:null});
- recSalon.value='';
- sauver();
+ try{
+  const nb=Math.round(num(recNb.value)||0),poids=num(recKg.value);
+  if(!nb||nb<1){alert('Indique le nombre de récipients (1 ou plus).');return;}
+  if(!poids||poids<=0){alert('Poids invalide : indique le poids d\'un récipient en kg (ex. 0,86).');return;}
+  const kg=Math.round(nb*poids*1000)/1000;
+  const s=saisonActive();
+  d.recharges.push({t:new Date().toISOString(),kg:kg,consigne:num(recConsigne.value),salon:num(recSalon.value),ext:temperatureExt,prix:prixMoyen(),saison:s?s.nom:null});
+  recSalon.value='';recNb.value=1;majTotalRec();
+  sauver();
+  const kgAch=d.achats.reduce((a,x)=>a+x.nb*x.poids,0),kgUt=d.recharges.reduce((a,x)=>a+x.kg,0);
+  const h=new Date();
+  confirmRec.textContent='✓ '+nb+' récipient'+(nb>1?'s':'')+' = '+String(kg).replace('.',',')+' kg enregistré à '+p2(h.getHours())+':'+p2(h.getMinutes())+' · reste '+Math.max(0,kgAch-kgUt).toFixed(1).replace('.',',')+' kg';
+ }catch(e){alert('Erreur au rechargement : '+e.message);}
 }
 function acheter(){
  const nb=parseFloat(achNb.value),poids=parseFloat(achPoids.value),prix=parseFloat(achPrix.value);
@@ -174,7 +210,7 @@ function supprimerAchat(i){
 }
 function supprimerRecharge(i){
  const r=d.recharges[i];
- if(r&&confirm('Supprimer ce rechargement de '+r.kg+' kg ?')){d.recharges.splice(i,1);sauver();}
+ if(r&&confirm('Supprimer ce rechargement de '+r.kg+' kg ?')){d.recharges.splice(i,1);sauver();confirmRec.textContent='';}
 }
 function demarrerSaison(){
  if(saisonActive()){alert('Une saison est déjà en cours.');return;}
@@ -239,6 +275,7 @@ function afficher(){
  histo.innerHTML=h;
  afficherStats();
  afficherCourbe();
+ majAnnuler();
 }
 function chargerMeteo(lat,lon){
  fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m')
@@ -407,6 +444,7 @@ function afficherCourbe(){
  svg.onpointerdown=choisir;
  svg.onpointermove=ev=>{if(ev.buttons||ev.pointerType==='touch')choisir(ev);};
 }
+majTotalRec();
 afficher();
 initMeteo();
 </script>
