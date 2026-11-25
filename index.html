@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<h1>🔥 Suivi granulés <span class="small">v4</span></h1>
+<h1>🔥 Suivi granulés <span class="small">v5</span></h1>
 
 <div class="card">
  <div class="small">Saison en cours : <span id="saisonNom">aucune</span></div>
@@ -348,8 +348,17 @@ function afficherCourbe(){
  const hums=pts.filter(p=>p.h!=null).map(p=>p.h);
  moyJour.textContent='Moyenne : '+moy.toFixed(1)+' °C';
  detailJour.textContent='Min '+mn.toFixed(1)+' °C · Max '+mx.toFixed(1)+' °C · '+pts.length+' mesures'+(hums.length?' · humidité moy. '+(hums.reduce((a,b)=>a+b,0)/hums.length).toFixed(0)+' %':'');
+ const cleLocale=dt=>dt.getFullYear()+'-'+p2(dt.getMonth()+1)+'-'+p2(dt.getDate());
+ const recs=d.recharges.map(r=>({dt:new Date(r.t),r:r})).filter(o=>!isNaN(o.dt)).sort((a,b)=>a.dt-b.dt);
+ const duJour=recs.filter(o=>cleLocale(o.dt)===jour.value).map(o=>({x:o.dt.getHours()+o.dt.getMinutes()/60,heure:p2(o.dt.getHours())+':'+p2(o.dt.getMinutes()),kg:o.r.kg,consigne:o.r.consigne}));
+ // consigne en vigueur : celle du dernier rechargement avant chaque instant (reprise de la veille si besoin)
+ const avant=recs.filter(o=>cleLocale(o.dt)<jour.value&&o.r.consigne!=null).pop();
+ const paliers=[];
+ if(avant)paliers.push({x:0,c:avant.r.consigne});
+ duJour.forEach(o=>{if(o.consigne!=null)paliers.push({x:o.x,c:o.consigne});});
+ const consignes=paliers.map(q=>q.c);
  const L=34,R=8,T=10,B=22,W=340,H=200;
- const yMin=Math.floor(Math.min(mn,moy)-0.5),yMax=Math.ceil(Math.max(mx,moy)+0.5);
+ const yMin=Math.floor(Math.min(mn,moy,...consignes)-0.5),yMax=Math.ceil(Math.max(mx,moy,...consignes)+0.5);
  const px=x=>L+(x/24)*(W-L-R);
  const py=y=>T+(1-(y-yMin)/(yMax-yMin))*(H-T-B);
  const pas=(yMax-yMin)>8?2:1;
@@ -362,16 +371,36 @@ function afficherCourbe(){
  }
  g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+py(moy)+'" y2="'+py(moy)+'" stroke="#2a7" stroke-width="1.5" stroke-dasharray="5 4"/>';
  g+='<text x="'+(W-R)+'" y="'+(py(moy)-3)+'" text-anchor="end" style="fill:#2a7">moy. '+moy.toFixed(1)+'°</text>';
+ if(paliers.length){
+  let dpath='M'+px(paliers[0].x).toFixed(1)+','+py(paliers[0].c).toFixed(1);
+  for(let i=1;i<paliers.length;i++)dpath+=' H'+px(paliers[i].x).toFixed(1)+' V'+py(paliers[i].c).toFixed(1);
+  dpath+=' H'+px(24).toFixed(1);
+  g+='<path d="'+dpath+'" fill="none" stroke="#888" stroke-width="1.5" stroke-dasharray="2 3"/>';
+  g+='<text x="'+(L+3)+'" y="'+(py(paliers[0].c)-3)+'" style="fill:#666">consigne '+paliers[0].c+'°</text>';
+ }
+ duJour.forEach(o=>{
+  g+='<line x1="'+px(o.x).toFixed(1)+'" x2="'+px(o.x).toFixed(1)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#1a6fc4" stroke-width="1.5"/>';
+  g+='<text x="'+px(o.x).toFixed(1)+'" y="'+(T+8)+'" text-anchor="'+(o.x>20?'end':'start')+'" style="fill:#1a6fc4">🔥'+String(o.kg).replace('.',',')+'</text>';
+ });
  g+='<polyline fill="none" stroke="#c4561a" stroke-width="2" stroke-linejoin="round" points="'+pts.map(p=>px(p.x).toFixed(1)+','+py(p.c).toFixed(1)).join(' ')+'"/>';
  pts.forEach(p=>{g+='<circle cx="'+px(p.x).toFixed(1)+'" cy="'+py(p.c).toFixed(1)+'" r="2.5" fill="#c4561a"/>';});
  g+='<circle id="curseur" r="5" fill="none" stroke="#222" stroke-width="1.5" style="display:none"/>';
  svg.innerHTML=g;
+ const nbRec=duJour.length,kgJour=duJour.reduce((a,o)=>a+o.kg,0);
+ if(nbRec)detailJour.textContent+=' · '+nbRec+' rechargement'+(nbRec>1?'s':'')+' ('+kgJour.toFixed(2).replace('.',',')+' kg)';
  const choisir=ev=>{
   const r=svg.getBoundingClientRect();
   const x=((ev.clientX-r.left)/r.width)*W;
+  const c=svg.querySelector('#curseur');
+  let proche=null,rd=1e9;
+  duJour.forEach(o=>{const dd=Math.abs(px(o.x)-x);if(dd<rd){rd=dd;proche=o;}});
+  if(proche&&rd<14){
+   c.style.display='none';
+   pointJour.textContent='🔥 '+proche.heure+' : rechargement de '+String(proche.kg).replace('.',',')+' kg'+(proche.consigne!=null?' · consigne '+proche.consigne+' °C':'');
+   return;
+  }
   let best=pts[0],bd=1e9;
   pts.forEach(p=>{const dd=Math.abs(px(p.x)-x);if(dd<bd){bd=dd;best=p;}});
-  const c=svg.querySelector('#curseur');
   c.setAttribute('cx',px(best.x));c.setAttribute('cy',py(best.c));c.style.display='';
   pointJour.textContent=best.heure+' : '+best.c.toFixed(1)+' °C'+(best.h!=null?' · '+best.h+' % d\'humidité':'');
  };
