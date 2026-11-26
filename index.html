@@ -241,7 +241,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
 </div>
 
 <script>
-const VERSION='2026-11-26.4';
+const VERSION='2026-11-26.5';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -339,7 +339,7 @@ function recharger(){
   if(passe&&passe>new Date()){alert('La date est dans le futur.');return;}
   const h=passe||new Date();
   const s=saisonActive();
-  d.recharges.push({t:h.toISOString(),kg:kg,consigne:num(recConsigne.value),salon:num(recSalon.value),ext:passe?null:temperatureExt,prix:prixMoyen(),saison:passe?saisonNom(h):(s?s.nom:null)});
+  d.recharges.push({t:h.toISOString(),kg:kg,consigne:num(recConsigne.value),salon:num(recSalon.value),ext:passe?null:temperatureExt,prix:prixMoyen(),saison:passe?nomSaisonDe(h):(s?s.nom:null)});
   trierParDate(d.recharges);
   recSalon.value='';recNb.value=1;recQuand.value='';majTotalRec();majBoutonRec();
   sauver();
@@ -387,7 +387,7 @@ function editerAchat(i){
  ouvrirEdition('Modifier l\'achat',a.t,false);
 }
 function trierParDate(t){t.sort((x,y)=>new Date(x.t)-new Date(y.t));}
-function saisonNom(dt){const s=saisonDe(dt);return s==='Hors saison'?null:s;}
+function nomSaisonDe(dt){const s=saisonDe(dt);return s==='Hors saison'?null:s;}
 function validerEdition(){
  if(!edition)return;
  if(!edDate.value){alert('Indique une date.');return;}
@@ -400,7 +400,7 @@ function validerEdition(){
   const kg=num(edKg.value);
   if(!kg||kg<=0){alert('Quantité invalide (kg).');return;}
   const r=d.recharges[edition.i];
-  r.t=dt.toISOString();r.kg=Math.round(kg*1000)/1000;r.saison=saisonNom(dt);
+  r.t=dt.toISOString();r.kg=Math.round(kg*1000)/1000;r.saison=nomSaisonDe(dt);
   trierParDate(d.recharges);
  }else{
   const nb=num(edNb.value),poids=num(edPoids.value),prix=num(edPrix.value);
