@@ -194,9 +194,10 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   </details>
  </div>
  <div class="card">
-  <h2>Saison de chauffe</h2>
+  <h2>Saisons de chauffe</h2>
   <button onclick="demarrerSaison()">Démarrer une saison</button>
   <button class="sec" onclick="cloturerSaison()">Clôturer la saison</button>
+  <div id="listeSaisons" style="margin-top:8px"></div>
  </div>
  <div class="card">
   <h2>Sauvegarde</h2>
@@ -334,6 +335,44 @@ function cloturerSaison(){
  const s=saisonActive();
  if(!s){alert('Aucune saison en cours.');return;}
  if(confirm('Clôturer '+s.nom+' ?')){s.fin=new Date().toISOString();sauver();}
+}
+function saisonDe(dt){
+ const k=cleJour(dt);
+ const s=d.saisons.find(x=>cleJour(new Date(x.debut))<=k&&(!x.fin||k<=cleJour(new Date(x.fin))));
+ return s?s.nom:'Hors saison';
+}
+function majListeSaisons(){
+ const el=document.getElementById('listeSaisons');
+ if(!d.saisons.length){el.innerHTML='<div class="small">Aucune saison. Démarre-en une.</div>';return;}
+ let h='';
+ d.saisons.map((s,i)=>({s:s,i:i})).sort((a,b)=>new Date(b.s.debut)-new Date(a.s.debut)).forEach(o=>{
+  const s=o.s,i=o.i;
+  h+='<div style="border-top:1px solid #eee;padding-top:8px;margin-top:8px">'
+   +'<label>Nom</label><input type="text" value="'+String(s.nom).replace(/"/g,'&quot;')+'" onchange="majSaison('+i+',\'nom\',this.value)">'
+   +'<label>Début</label><input type="date" value="'+cleJour(new Date(s.debut))+'" onchange="majSaison('+i+',\'debut\',this.value)">'
+   +'<label>Fin <span class="small">(vide = saison en cours)</span></label><input type="date" value="'+(s.fin?cleJour(new Date(s.fin)):'')+'" onchange="majSaison('+i+',\'fin\',this.value)">'
+   +'<button class="sup" onclick="supprimerSaison('+i+')">Supprimer cette saison</button></div>';
+ });
+ el.innerHTML=h;
+}
+function majSaison(i,champ,val){
+ const s=d.saisons[i];
+ if(!s)return;
+ let nom=s.nom,debut=s.debut,fin=s.fin;
+ if(champ==='nom'){if(val.trim())nom=val.trim();}
+ else if(champ==='debut'){if(!val){majListeSaisons();return;}debut=dateDeCle(val).toISOString();}
+ else{
+  if(!val)fin=null;
+  else{const a=dateDeCle(val);fin=new Date(a.getFullYear(),a.getMonth(),a.getDate(),23,59,59).toISOString();}
+ }
+ if(fin&&cleJour(new Date(fin))<cleJour(new Date(debut))){alert('La fin doit être après le début.');majListeSaisons();return;}
+ if(!fin&&d.saisons.some((x,j)=>j!==i&&!x.fin)){alert('Une autre saison est déjà en cours. Indique d\'abord sa date de fin.');majListeSaisons();return;}
+ s.nom=nom;s.debut=debut;s.fin=fin;
+ sauver();
+}
+function supprimerSaison(i){
+ const s=d.saisons[i];
+ if(s&&confirm('Supprimer la saison "'+s.nom+'" ? Les rechargements ne sont pas supprimés.')){d.saisons.splice(i,1);sauver();}
 }
 function cleSemaine(date){
  const x=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
@@ -479,7 +518,7 @@ function afficherStats(){
   let cle;
   if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
-  else cle=r.saison||'Hors saison';
+  else cle=saisonDe(dt);
   const g=grp(cle);
   g.kg+=r.kg;
   g.eur+=r.kg*(r.prix||0);
@@ -492,10 +531,7 @@ function afficherStats(){
   let cle;
   if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=k.slice(0,7);
-  else{
-   const s=d.saisons.find(x=>cleJour(new Date(x.debut))<=k&&(!x.fin||k<=cleJour(new Date(x.fin))));
-   cle=s?s.nom:'Hors saison';
-  }
+  else cle=saisonDe(dt);
   grp(cle).min+=mn;
  }
  let html='<tr><th>Période</th><th>kg</th><th>Coût</th><th>Heures</th><th>kg/h</th></tr>';
@@ -531,6 +567,7 @@ function afficher(){
  }
  histo.innerHTML=h;
  afficherHoraires();
+ majListeSaisons();
  majResume();
  afficherStats();
  afficherCourbe();
