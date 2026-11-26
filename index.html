@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<h1>🔥 Suivi granulés <span class="small">v5.3</span></h1>
+<h1>🔥 Suivi granulés <span class="small">v6</span></h1>
 
 <div class="card">
  <div class="small">Saison en cours : <span id="saisonNom">aucune</span></div>
@@ -72,6 +72,29 @@
  <h2>Saison</h2>
  <button onclick="demarrerSaison()">Démarrer une saison</button>
  <button class="sec" onclick="cloturerSaison()">Clôturer la saison</button>
+</div>
+
+<div class="card">
+ <h2>Horaires de marche</h2>
+ <div class="nav">
+  <button class="sec" onclick="changerJourH(-1)">◀</button>
+  <input id="jourH" type="date" onchange="afficherHoraires()">
+  <button class="sec" onclick="changerJourH(1)">▶</button>
+ </div>
+ <div class="small" id="libJourH"></div>
+ <input id="plagesJour" type="text" placeholder="ex. 5h-7h, 16h30-21h">
+ <div class="small" id="totalJourH"></div>
+ <button onclick="enregistrerJourH()">Enregistrer ce jour</button>
+ <button class="sec" onclick="eteintJourH()">Éteint toute la journée</button>
+ <button class="sec" onclick="typeJourH()">Horaire type</button>
+ <h2>Horaires types</h2>
+ <label>Semaine (lundi à vendredi)</label>
+ <input id="hSemaine" type="text">
+ <label>Week-end (samedi et dimanche)</label>
+ <input id="hWeekend" type="text">
+ <label>Suivi des heures depuis le</label>
+ <input id="hDepuis" type="date">
+ <button class="sec" onclick="enregistrerTypes()">Enregistrer les horaires types</button>
 </div>
 
 <div class="card">
@@ -148,6 +171,17 @@ function normaliser(){
   d.salon=o;
  }
  if(!d.salon||typeof d.salon!=='object')d.salon={};
+ // Horaires de marche du poêle (minutes depuis minuit)
+ const hd=(d.horaires&&typeof d.horaires==='object')?d.horaires:{};
+ const ok=(p,def)=>Array.isArray(p)&&p.every(x=>Array.isArray(x)&&x.length===2&&isFinite(x[0])&&isFinite(x[1]))?p:def;
+ const jours={};
+ if(hd.jours&&typeof hd.jours==='object')Object.keys(hd.jours).forEach(k=>{if(/^\d{4}-\d{2}-\d{2}$/.test(k)){const p=ok(hd.jours[k],null);if(p)jours[k]=p;}});
+ d.horaires={
+  depuis:/^\d{4}-\d{2}-\d{2}$/.test(hd.depuis||'')?hd.depuis:'2026-11-26',
+  semaine:ok(hd.semaine,[[300,420],[990,1260]]),
+  weekend:ok(hd.weekend,[[420,720],[1020,1260]]),
+  jours:jours
+ };
 }
 normaliser();
 localStorage.setItem(CLE,JSON.stringify(d));
@@ -230,21 +264,126 @@ function cleSemaine(date){
  const sem=Math.ceil(((x-debut)/86400000+1)/7);
  return x.getUTCFullYear()+' S'+String(sem).padStart(2,'0');
 }
+/* ---- Horaires de marche ---- */
+function cleJour(dt){return dt.getFullYear()+'-'+p2(dt.getMonth()+1)+'-'+p2(dt.getDate());}
+function dateDeCle(k){const a=k.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);}
+function fmtH(m){const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?p2(mm):'');}
+function fmtPlages(p){return p.map(x=>fmtH(x[0])+'-'+fmtH(x[1])).join(', ');}
+function parseHeure(s){
+ const m=/^(\d{1,2})\s*(?:[h:]\s*(\d{1,2})?)?$/i.exec(s.trim());
+ if(!m)return null;
+ const h=+m[1],mi=m[2]!==undefined?+m[2]:0;
+ if(h>24||mi>59||(h===24&&mi>0))return null;
+ return h*60+mi;
+}
+function parsePlages(txt){
+ txt=String(txt||'').trim();
+ if(!txt)return [];
+ const out=[];
+ for(const part of txt.split(/[,;]|\bet\b/i)){
+  if(!part.trim())continue;
+  const ab=part.split(/\s*(?:-|–|à)\s*/);
+  if(ab.length!==2)return null;
+  const a=parseHeure(ab[0]),b=parseHeure(ab[1]);
+  if(a==null||b==null||b<=a)return null;
+  out.push([a,b]);
+ }
+ return out.sort((x,y)=>x[0]-y[0]);
+}
+function typePour(cle){const w=dateDeCle(cle).getDay();return (w===0||w===6)?d.horaires.weekend:d.horaires.semaine;}
+function plagesDuJour(cle){
+ const H=d.horaires;
+ if(H.jours[cle])return H.jours[cle];
+ if(cle<H.depuis)return null;
+ return typePour(cle);
+}
+function minutesJour(cle){
+ const p=plagesDuJour(cle);
+ if(!p)return 0;
+ const now=new Date();
+ const cap=cle===cleJour(now)?now.getHours()*60+now.getMinutes():1440;
+ return p.reduce((a,x)=>a+Math.max(0,Math.min(x[1],cap)-x[0]),0);
+}
+function changerJourH(delta){
+ const dt=dateDeCle(jourH.value||cleJour(new Date()));
+ dt.setDate(dt.getDate()+delta);
+ jourH.value=cleJour(dt);
+ afficherHoraires();
+}
+function afficherHoraires(){
+ const H=d.horaires;
+ if(!jourH.value)jourH.value=cleJour(new Date());
+ hSemaine.value=fmtPlages(H.semaine);
+ hWeekend.value=fmtPlages(H.weekend);
+ hDepuis.value=H.depuis;
+ const k=jourH.value,p=plagesDuJour(k);
+ const w=dateDeCle(k).getDay(),typeNom=(w===0||w===6)?'week-end':'semaine';
+ if(!p){
+  plagesJour.value='';
+  libJourH.textContent='Avant le début du suivi ('+H.depuis+')';
+  totalJourH.textContent='';
+  return;
+ }
+ plagesJour.value=fmtPlages(p);
+ libJourH.textContent=H.jours[k]?'Horaires modifiés pour ce jour':'Horaire type ('+typeNom+')';
+ const mn=p.reduce((a,x)=>a+(x[1]-x[0]),0);
+ totalJourH.textContent=p.length?'Marche : '+Math.floor(mn/60)+' h'+(mn%60?' '+p2(mn%60):''):'Poêle éteint toute la journée';
+}
+function enregistrerJourH(){
+ const p=parsePlages(plagesJour.value);
+ if(p===null){alert('Format non reconnu. Exemple : 5h-7h, 16h30-21h');return;}
+ d.horaires.jours[jourH.value]=p;
+ sauver();
+}
+function eteintJourH(){d.horaires.jours[jourH.value]=[];sauver();}
+function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
+function enregistrerTypes(){
+ const s=parsePlages(hSemaine.value),w=parsePlages(hWeekend.value);
+ if(s===null||w===null){alert('Format non reconnu. Exemple : 5h-7h, 16h30-21h');return;}
+ if(!hDepuis.value){alert('Indique la date de début du suivi.');return;}
+ // Fige les jours déjà passés avec les anciens horaires types, pour ne pas les modifier
+ const H=d.horaires,hier=new Date();
+ hier.setDate(hier.getDate()-1);
+ const finGel=cleJour(hier);
+ for(let dt=dateDeCle(H.depuis),n=0;cleJour(dt)<=finGel&&n<3700;dt.setDate(dt.getDate()+1),n++){
+  const k=cleJour(dt);
+  if(!H.jours[k])H.jours[k]=typePour(k).map(x=>x.slice());
+ }
+ H.semaine=s;H.weekend=w;H.depuis=hDepuis.value;
+ sauver();
+}
 function afficherStats(){
  const mode=periode.value,groupes={};
+ const grp=c=>(groupes[c]=groupes[c]||{kg:0,eur:0,kgSuivi:0,min:0});
+ const depuis=d.horaires.depuis;
  d.recharges.forEach(r=>{
   const dt=new Date(r.t);
   let cle;
   if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
   else cle=r.saison||'Hors saison';
-  groupes[cle]=groupes[cle]||{kg:0,eur:0};
-  groupes[cle].kg+=r.kg;
-  groupes[cle].eur+=r.kg*(r.prix||0);
+  const g=grp(cle);
+  g.kg+=r.kg;
+  g.eur+=r.kg*(r.prix||0);
+  if(cleJour(dt)>=depuis)g.kgSuivi+=r.kg;
  });
- let html='<tr><th>Période</th><th>kg</th><th>Coût</th></tr>';
+ const auj=cleJour(new Date());
+ for(let dt=dateDeCle(depuis),n=0;cleJour(dt)<=auj&&n<3700;dt.setDate(dt.getDate()+1),n++){
+  const k=cleJour(dt),mn=minutesJour(k);
+  if(!mn)continue;
+  let cle;
+  if(mode==='semaine')cle=cleSemaine(dt);
+  else if(mode==='mois')cle=k.slice(0,7);
+  else{
+   const s=d.saisons.find(x=>cleJour(new Date(x.debut))<=k&&(!x.fin||k<=cleJour(new Date(x.fin))));
+   cle=s?s.nom:'Hors saison';
+  }
+  grp(cle).min+=mn;
+ }
+ let html='<tr><th>Période</th><th>kg</th><th>Coût</th><th>Heures</th><th>kg/h</th></tr>';
  Object.keys(groupes).sort().reverse().forEach(c=>{
-  html+='<tr><td>'+c+'</td><td>'+groupes[c].kg.toFixed(1)+'</td><td>'+groupes[c].eur.toFixed(2)+' €</td></tr>';
+  const g=groupes[c],h=g.min/60;
+  html+='<tr><td>'+c+'</td><td>'+g.kg.toFixed(1)+'</td><td>'+g.eur.toFixed(2)+' €</td><td>'+(h?h.toFixed(1):'')+'</td><td>'+(h>0&&g.kgSuivi>0?(g.kgSuivi/h).toFixed(2):'')+'</td></tr>';
  });
  stats.innerHTML=html;
  prixMoyenEl.textContent='Prix moyen pondéré : '+prixMoyen().toFixed(3)+' €/kg';
@@ -273,6 +412,7 @@ function afficher(){
   h+='<tr><td>'+dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+r.kg+'</td><td>'+(r.consigne??'')+'</td><td>'+(r.ext!=null?r.ext+'°':'')+'</td><td><button class="sup" onclick="supprimerRecharge('+i+')">Suppr.</button></td></tr>';
  }
  histo.innerHTML=h;
+ afficherHoraires();
  afficherStats();
  afficherCourbe();
  majAnnuler();
@@ -406,6 +546,8 @@ function afficherCourbe(){
  for(let h=0;h<=24;h+=6){
   g+='<line x1="'+px(h)+'" x2="'+px(h)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#eee"/><text x="'+px(h)+'" y="'+(H-6)+'" text-anchor="middle">'+h+'h</text>';
  }
+ const marche=plagesDuJour(jour.value)||[];
+ marche.forEach(q=>{g+='<rect x="'+px(q[0]/60).toFixed(1)+'" y="'+T+'" width="'+(px(q[1]/60)-px(q[0]/60)).toFixed(1)+'" height="'+(H-T-B)+'" fill="#c4561a" opacity="0.10"/>';});
  g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+py(moy)+'" y2="'+py(moy)+'" stroke="#2a7" stroke-width="1.5" stroke-dasharray="5 4"/>';
  g+='<text x="'+(W-R)+'" y="'+(py(moy)-3)+'" text-anchor="end" style="fill:#2a7">moy. '+moy.toFixed(1)+'°</text>';
  if(paliers.length){
@@ -424,6 +566,7 @@ function afficherCourbe(){
  g+='<circle id="curseur" r="5" fill="none" stroke="#222" stroke-width="1.5" style="display:none"/>';
  svg.innerHTML=g;
  const nbRec=duJour.length,kgJour=duJour.reduce((a,o)=>a+o.kg,0);
+ if(marche.length){const mn=marche.reduce((a,x)=>a+(x[1]-x[0]),0);detailJour.textContent+=' · poêle en marche '+fmtPlages(marche)+' ('+(mn/60).toFixed(1).replace('.',',')+' h)';}
  if(nbRec)detailJour.textContent+=' · '+nbRec+' rechargement'+(nbRec>1?'s':'')+' ('+kgJour.toFixed(2).replace('.',',')+' kg)';
  const choisir=ev=>{
   const r=svg.getBoundingClientRect();
