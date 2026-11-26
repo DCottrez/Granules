@@ -158,7 +158,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   </div>
   <table id="stats"></table>
   <div class="small" id="prixMoyen" style="margin-top:8px"></div>
-  <div class="small">kg = granulés versés dans le poêle sur la période (pas forcément déjà brûlés : le réservoir garde une réserve). Heures = heures de marche des jours renseignés. kg/h = kg rechargés ces jours-là ÷ heures de marche ; le chiffre devient fiable sur plusieurs jours.</div>
+  <div class="small">kg = granulés versés dans le poêle sur la période (pas forcément déjà brûlés : le réservoir garde une réserve). Heures = heures de marche des jours renseignés. kg/h = kg rechargés ces jours-là ÷ heures de marche ; le chiffre devient fiable sur plusieurs jours. kg est. = heures de marche × kg/h moyen de la saison : consommation estimée, indépendante des jours de recharge.</div>
  </div>
 </div>
 
@@ -242,7 +242,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
 </div>
 
 <script>
-const VERSION='2026-11-26.6';
+const VERSION='2026-11-26.7';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -604,11 +604,29 @@ function changerDepuis(){
 }
 function eteintJourH(){d.horaires.jours[jourH.value]=[];sauver();}
 function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
+// kg/h moyen par saison (kg rechargés les jours renseignés ÷ heures de marche), sur toute la saison
+function tauxParSaison(depuis,auj){
+ const t={},tot={kg:0,min:0};
+ const g=n=>(t[n]=t[n]||{kg:0,min:0});
+ d.recharges.forEach(r=>{
+  const dt=new Date(r.t);
+  if(plagesDuJour(cleJour(dt))){g(saisonDe(dt)).kg+=r.kg;tot.kg+=r.kg;}
+ });
+ for(let dt=dateDeCle(depuis),n=0;cleJour(dt)<=auj&&n<3700;dt.setDate(dt.getDate()+1),n++){
+  const mn=minutesJour(cleJour(dt));
+  if(mn){g(saisonDe(dt)).min+=mn;tot.min+=mn;}
+ }
+ const global=tot.min&&tot.kg?tot.kg/(tot.min/60):0;
+ const res={};
+ Object.keys(t).forEach(n=>{res[n]=t[n].min&&t[n].kg?t[n].kg/(t[n].min/60):global;});
+ return n=>res[n]??global;
+}
 function afficherStats(){
  const mode=periode.value,groupes={};
- const grp=c=>(groupes[c]=groupes[c]||{kg:0,eur:0,kgSuivi:0,min:0});
+ const grp=c=>(groupes[c]=groupes[c]||{kg:0,eur:0,kgSuivi:0,min:0,est:0});
  // premier jour renseigné : début du suivi ou jour passé saisi à la main
  const depuis=Object.keys(d.horaires.jours).concat(d.horaires.depuis).sort()[0];
+ const taux=tauxParSaison(depuis,cleJour(new Date()));
  d.recharges.forEach(r=>{
   const dt=new Date(r.t);
   let cle;
@@ -630,13 +648,15 @@ function afficherStats(){
   else if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=k.slice(0,7);
   else cle=saisonDe(dt);
-  grp(cle).min+=mn;
+  const g=grp(cle);
+  g.min+=mn;
+  g.est+=mn/60*taux(saisonDe(dt));
  }
- let html='<tr><th>Période</th><th>kg</th><th>Coût</th><th>Heures</th><th>kg/h</th></tr>';
+ let html='<tr><th>Période</th><th>kg</th><th>Coût</th><th>Heures</th><th>kg/h</th><th>kg est.</th></tr>';
  Object.keys(groupes).sort().reverse().forEach(c=>{
   const g=groupes[c],h=g.min/60;
   const lib=mode==='jour'?dateDeCle(c).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'2-digit'}):c;
-  html+='<tr><td>'+lib+'</td><td>'+g.kg.toFixed(1)+'</td><td>'+g.eur.toFixed(2)+' €</td><td>'+(h?h.toFixed(1):'')+'</td><td>'+(h>0&&g.kgSuivi>0?(g.kgSuivi/h).toFixed(2):'')+'</td></tr>';
+  html+='<tr><td>'+lib+'</td><td>'+g.kg.toFixed(1)+'</td><td>'+g.eur.toFixed(2)+' €</td><td>'+(h?h.toFixed(1):'')+'</td><td>'+(h>0&&g.kgSuivi>0?(g.kgSuivi/h).toFixed(2):'')+'</td><td>'+(g.est>0?g.est.toFixed(1):'')+'</td></tr>';
  });
  stats.innerHTML=html;
  prixMoyenEl.textContent='Prix moyen pondéré : '+prixMoyen().toFixed(3)+' €/kg';
