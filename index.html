@@ -212,7 +212,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   <button class="sec" onclick="document.getElementById('fichier').click()">Importer</button>
   <input id="fichier" type="file" accept=".json" style="display:none" onchange="importer(event)">
  </div>
- <div class="small" style="text-align:center">Version 2026-11-26.2</div>
+ <div class="small" style="text-align:center">Version 2026-11-26.3</div>
 </div>
 
 <div id="editeur" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:20;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
@@ -293,7 +293,11 @@ let temperatureExt=null;
 let nbHisto=10;
 let edition=null;
 function sauver(){localStorage.setItem(CLE,JSON.stringify(d));afficher();}
-function saisonActive(){return d.saisons.find(s=>!s.fin);}
+// saison qui couvre aujourd'hui (fin vide ou dans le futur), sinon celle sans date de fin
+function saisonActive(){
+ const k=cleJour(new Date());
+ return d.saisons.find(s=>cleJour(new Date(s.debut))<=k&&(!s.fin||k<=cleJour(new Date(s.fin))))||d.saisons.find(s=>!s.fin);
+}
 function prixMoyen(){
  let kg=0,eur=0;
  d.achats.forEach(a=>{kg+=a.nb*a.poids;eur+=a.nb*a.prix;});
@@ -416,7 +420,8 @@ function supprimerRecharge(i){
  if(r&&confirm('Supprimer ce rechargement de '+r.kg+' kg ?')){d.recharges.splice(i,1);sauver();confirmRec.textContent='';}
 }
 function demarrerSaison(){
- if(saisonActive()){alert('Une saison est déjà en cours.');return;}
+ const enCours=saisonActive();
+ if(enCours){alert('La saison "'+enCours.nom+'" est déjà en cours (depuis le '+new Date(enCours.debut).toLocaleDateString('fr-FR')+'). Modifie-la ci-dessous ou clôture-la d\'abord.');return;}
  const nom=prompt('Nom de la saison','Hiver '+new Date().getFullYear());
  if(nom){d.saisons.push({nom:nom,debut:new Date().toISOString(),fin:null});sauver();}
 }
