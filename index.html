@@ -151,6 +151,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   <h2>Consommation et coût</h2>
   <input id="periode" type="hidden" value="semaine">
   <div class="seg">
+   <button id="seg-jour" onclick="setPeriode('jour')">Jour</button>
    <button id="seg-semaine" class="on" onclick="setPeriode('semaine')">Semaine</button>
    <button id="seg-mois" onclick="setPeriode('mois')">Mois</button>
    <button id="seg-saison" onclick="setPeriode('saison')">Saison</button>
@@ -241,7 +242,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
 </div>
 
 <script>
-const VERSION='2026-11-26.5';
+const VERSION='2026-11-26.6';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -611,7 +612,8 @@ function afficherStats(){
  d.recharges.forEach(r=>{
   const dt=new Date(r.t);
   let cle;
-  if(mode==='semaine')cle=cleSemaine(dt);
+  if(mode==='jour')cle=cleJour(dt);
+  else if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
   else cle=saisonDe(dt);
   const g=grp(cle);
@@ -624,7 +626,8 @@ function afficherStats(){
   const k=cleJour(dt),mn=minutesJour(k);
   if(!mn)continue;
   let cle;
-  if(mode==='semaine')cle=cleSemaine(dt);
+  if(mode==='jour')cle=k;
+  else if(mode==='semaine')cle=cleSemaine(dt);
   else if(mode==='mois')cle=k.slice(0,7);
   else cle=saisonDe(dt);
   grp(cle).min+=mn;
@@ -632,7 +635,8 @@ function afficherStats(){
  let html='<tr><th>Période</th><th>kg</th><th>Coût</th><th>Heures</th><th>kg/h</th></tr>';
  Object.keys(groupes).sort().reverse().forEach(c=>{
   const g=groupes[c],h=g.min/60;
-  html+='<tr><td>'+c+'</td><td>'+g.kg.toFixed(1)+'</td><td>'+g.eur.toFixed(2)+' €</td><td>'+(h?h.toFixed(1):'')+'</td><td>'+(h>0&&g.kgSuivi>0?(g.kgSuivi/h).toFixed(2):'')+'</td></tr>';
+  const lib=mode==='jour'?dateDeCle(c).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'2-digit'}):c;
+  html+='<tr><td>'+lib+'</td><td>'+g.kg.toFixed(1)+'</td><td>'+g.eur.toFixed(2)+' €</td><td>'+(h?h.toFixed(1):'')+'</td><td>'+(h>0&&g.kgSuivi>0?(g.kgSuivi/h).toFixed(2):'')+'</td></tr>';
  });
  stats.innerHTML=html;
  prixMoyenEl.textContent='Prix moyen pondéré : '+prixMoyen().toFixed(3)+' €/kg';
@@ -862,7 +866,7 @@ function onglet(n){
 }
 function setPeriode(v){
  periode.value=v;
- ['semaine','mois','saison'].forEach(x=>document.getElementById('seg-'+x).classList.toggle('on',x===v));
+ ['jour','semaine','mois','saison'].forEach(x=>document.getElementById('seg-'+x).classList.toggle('on',x===v));
  afficherStats();
 }
 function pas(id,delta,min){
