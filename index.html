@@ -107,6 +107,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
  <div class="card">
   <h2>Derniers rechargements</h2>
   <table id="histo"></table>
+  <button class="sec" onclick="nbHisto+=20;afficher()" style="font-size:14px;padding:8px 12px;margin-top:8px">Afficher plus</button>
  </div>
 </div>
 
@@ -208,6 +209,17 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
  </div>
 </div>
 
+<div id="editeur" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:20;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+ <div class="card" style="width:100%;max-width:420px;margin:0">
+  <h2 id="edTitre"></h2>
+  <label>Date</label>
+  <input id="edDate" type="date">
+  <div id="edHeureBloc"><label>Heure</label><input id="edHeure" type="time"></div>
+  <button onclick="validerEdition()">Enregistrer</button>
+  <button class="sec" onclick="fermerEdition()">Annuler</button>
+ </div>
+</div>
+
 <div class="tabbar">
  <button id="tab-accueil" onclick="onglet('accueil')"><b>🏠</b>Accueil</button>
  <button id="tab-horaires" onclick="onglet('horaires')"><b>⏰</b>Horaires</button>
@@ -266,6 +278,8 @@ function normaliser(){
 normaliser();
 localStorage.setItem(CLE,JSON.stringify(d));
 let temperatureExt=null;
+let nbHisto=10;
+let edition=null;
 function sauver(){localStorage.setItem(CLE,JSON.stringify(d));afficher();}
 function saisonActive(){return d.saisons.find(s=>!s.fin);}
 function prixMoyen(){
@@ -316,6 +330,38 @@ function acheter(){
  const nb=parseFloat(achNb.value),poids=parseFloat(achPoids.value),prix=parseFloat(achPrix.value);
  if(!nb||!poids||!prix)return;
  d.achats.push({t:new Date().toISOString(),nb:nb,poids:poids,prix:prix});
+ sauver();
+}
+function ouvrirEdition(titre,iso,avecHeure){
+ const dt=new Date(iso);
+ edTitre.textContent=titre;
+ edDate.value=cleJour(dt);
+ edHeure.value=p2(dt.getHours())+':'+p2(dt.getMinutes());
+ document.getElementById('edHeureBloc').style.display=avecHeure?'block':'none';
+ document.getElementById('editeur').style.display='flex';
+}
+function fermerEdition(){edition=null;document.getElementById('editeur').style.display='none';}
+function editerRecharge(i){
+ const r=d.recharges[i];if(!r)return;
+ edition={type:'r',i:i};
+ ouvrirEdition('Date du rechargement ('+String(r.kg).replace('.',',')+' kg)',r.t,true);
+}
+function editerAchat(i){
+ const a=d.achats[i];if(!a)return;
+ edition={type:'a',i:i};
+ ouvrirEdition('Date de l\'achat ('+a.nb+' sacs)',a.t,false);
+}
+function validerEdition(){
+ if(!edition)return;
+ if(!edDate.value){alert('Indique une date.');return;}
+ const a=edDate.value.split('-').map(Number);
+ let hh=12,mm=0;
+ if(edition.type==='r'){const h=(edHeure.value||'').split(':').map(Number);if(h.length===2&&isFinite(h[0])&&isFinite(h[1])){hh=h[0];mm=h[1];}}
+ else{const o=new Date(d.achats[edition.i].t);hh=o.getHours();mm=o.getMinutes();}
+ const iso=new Date(a[0],a[1]-1,a[2],hh,mm).toISOString();
+ if(edition.type==='r'){d.recharges[edition.i].t=iso;d.recharges.sort((x,y)=>new Date(x.t)-new Date(y.t));}
+ else{d.achats[edition.i].t=iso;d.achats.sort((x,y)=>new Date(x.t)-new Date(y.t));}
+ fermerEdition();
  sauver();
 }
 function supprimerAchat(i){
@@ -555,15 +601,15 @@ function afficher(){
  stockKg.textContent=kgStock.toFixed(1)+' kg restants';
  let ha='<tr><th>Date</th><th>Sacs</th><th>Prix</th><th></th></tr>';
  d.achats.forEach((a,i)=>{
-  ha+='<tr><td>'+new Date(a.t).toLocaleDateString('fr-FR')+'</td><td>'+a.nb+' x '+a.poids+' kg</td><td>'+a.prix.toFixed(2)+' €</td><td><button class="sup" onclick="supprimerAchat('+i+')">Suppr.</button></td></tr>';
+  ha+='<tr><td>'+new Date(a.t).toLocaleDateString('fr-FR')+'</td><td>'+a.nb+' x '+a.poids+' kg</td><td>'+a.prix.toFixed(2)+' €</td><td style="white-space:nowrap"><button class="sec" style="padding:6px 10px;font-size:14px;margin:0 4px 0 0" onclick="editerAchat('+i+')">✎</button><button class="sup" onclick="supprimerAchat('+i+')">Suppr.</button></td></tr>';
  });
  histoAchats.innerHTML=ha;
  let h='<tr><th>Date</th><th>kg</th><th>Cons.</th><th>Ext.</th><th></th></tr>';
- const debut=Math.max(0,d.recharges.length-10);
+ const debut=Math.max(0,d.recharges.length-nbHisto);
  for(let i=d.recharges.length-1;i>=debut;i--){
   const r=d.recharges[i];
   const dt=new Date(r.t);
-  h+='<tr><td>'+dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+r.kg+'</td><td>'+(r.consigne??'')+'</td><td>'+(r.ext!=null?r.ext+'°':'')+'</td><td><button class="sup" onclick="supprimerRecharge('+i+')">Suppr.</button></td></tr>';
+  h+='<tr><td>'+dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+r.kg+'</td><td>'+(r.consigne??'')+'</td><td>'+(r.ext!=null?r.ext+'°':'')+'</td><td style="white-space:nowrap"><button class="sec" style="padding:6px 10px;font-size:14px;margin:0 4px 0 0" onclick="editerRecharge('+i+')">✎</button><button class="sup" onclick="supprimerRecharge('+i+')">Suppr.</button></td></tr>';
  }
  histo.innerHTML=h;
  afficherHoraires();
