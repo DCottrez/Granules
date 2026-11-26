@@ -82,9 +82,9 @@
   <button class="sec" onclick="changerJourH(1)">▶</button>
  </div>
  <div class="small" id="libJourH"></div>
- <input id="plagesJour" type="text" placeholder="ex. 5h-7h, 16h30-21h">
+ <div id="plagesJour"></div>
  <div class="small" id="totalJourH"></div>
- <button onclick="enregistrerJourH()">Enregistrer ce jour</button>
+ <button onclick="ajouterPlage()">+ Ajouter une plage</button>
  <button class="sec" onclick="eteintJourH()">Éteint toute la journée</button>
  <button class="sec" onclick="typeJourH()">Horaire type</button>
  <h2>Horaires types</h2>
@@ -319,21 +319,41 @@ function afficherHoraires(){
  const k=jourH.value,p=plagesDuJour(k);
  const w=dateDeCle(k).getDay(),typeNom=(w===0||w===6)?'week-end':'semaine';
  if(!p){
-  plagesJour.value='';
+  plagesJour.innerHTML='';
   libJourH.textContent='Avant le début du suivi ('+H.depuis+')';
   totalJourH.textContent='';
   return;
  }
- plagesJour.value=fmtPlages(p);
+ plagesJour.innerHTML=p.map((x,i)=>'<div class="nav"><input type="time" value="'+hhmm(x[0])+'" onchange="majPlage('+i+',0,this.value)"><span>à</span><input type="time" value="'+hhmm(x[1])+'" onchange="majPlage('+i+',1,this.value)"><button class="sup" onclick="supprimerPlage('+i+')">✕</button></div>').join('');
  libJourH.textContent=H.jours[k]?'Horaires modifiés pour ce jour':'Horaire type ('+typeNom+')';
  const mn=p.reduce((a,x)=>a+(x[1]-x[0]),0);
  totalJourH.textContent=p.length?'Marche : '+Math.floor(mn/60)+' h'+(mn%60?' '+p2(mn%60):''):'Poêle éteint toute la journée';
 }
-function enregistrerJourH(){
- const p=parsePlages(plagesJour.value);
- if(p===null){alert('Format non reconnu. Exemple : 5h-7h, 16h30-21h');return;}
- d.horaires.jours[jourH.value]=p;
+function hhmm(m){m=Math.min(m,1439);return p2(Math.floor(m/60))+':'+p2(m%60);}
+function plagesCopie(){return (plagesDuJour(jourH.value)||[]).map(x=>x.slice());}
+function enregistrerPlages(p){
+ d.horaires.jours[jourH.value]=p.sort((a,b)=>a[0]-b[0]);
  sauver();
+}
+function majPlage(i,pos,val){
+ const m=parseHeure(val),p=plagesCopie();
+ if(m==null||!p[i]){afficherHoraires();return;}
+ p[i][pos]=m;
+ if(p[i][1]<=p[i][0]){alert('L\'heure de fin doit être après l\'heure de début.');afficherHoraires();return;}
+ enregistrerPlages(p);
+}
+function supprimerPlage(i){
+ const p=plagesCopie();
+ p.splice(i,1);
+ enregistrerPlages(p);
+}
+function ajouterPlage(){
+ if(!plagesDuJour(jourH.value)&&jourH.value<d.horaires.depuis){alert('Ce jour est avant le début du suivi.');return;}
+ const p=plagesCopie();
+ let a=p.length?Math.max(...p.map(x=>x[1]))+60:480;
+ if(a>1320)a=1080;
+ p.push([a,Math.min(a+60,1439)]);
+ enregistrerPlages(p);
 }
 function eteintJourH(){d.horaires.jours[jourH.value]=[];sauver();}
 function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
