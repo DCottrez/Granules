@@ -98,8 +98,10 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
    <input id="recKg" type="number" step="0.01" value="0.86" oninput="majTotalRec()">
    <label>Température du salon (°C, facultatif)</label>
    <input id="recSalon" type="number" step="0.1">
+   <label>Date et heure (pour un rechargement passé, sinon laisser vide)</label>
+   <input id="recQuand" type="datetime-local" oninput="majBoutonRec()">
   </details>
-  <button class="gros" onclick="recharger()">🔥 Recharger maintenant</button>
+  <button class="gros" id="btnRec" onclick="recharger()">🔥 Recharger maintenant</button>
   <div class="ok" id="confirmRec"></div>
   <button class="sec" id="btnAnnuler" onclick="annulerDernier()" style="display:none;margin-top:8px;font-size:15px"></button>
  </div>
@@ -155,7 +157,7 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   </div>
   <table id="stats"></table>
   <div class="small" id="prixMoyen" style="margin-top:8px"></div>
-  <div class="small">kg/h = kg rechargés ÷ heures de marche (depuis le début du suivi des heures).</div>
+  <div class="small">kg = granulés versés dans le poêle sur la période (pas forcément déjà brûlés : le réservoir garde une réserve). Heures = heures de marche des jours renseignés. kg/h = kg rechargés ces jours-là ÷ heures de marche ; le chiffre devient fiable sur plusieurs jours.</div>
  </div>
 </div>
 
@@ -188,6 +190,9 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   <input id="achPoids" type="number" value="15">
   <label>Prix d'un sac (€)</label>
   <input id="achPrix" type="number" step="0.01" value="6.50">
+  <label>Date de l'achat</label>
+  <input id="achDate" type="date">
+  <div class="ok" id="confirmAch"></div>
   <button class="gros" onclick="acheter()">Enregistrer l'achat</button>
   <details>
    <summary>Achats enregistrés</summary>
@@ -215,6 +220,12 @@ Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom"
   <label>Date</label>
   <input id="edDate" type="date">
   <div id="edHeureBloc"><label>Heure</label><input id="edHeure" type="time"></div>
+  <div id="edRecBloc"><label>Quantité (kg)</label><input id="edKg" type="number" step="0.01" inputmode="decimal"></div>
+  <div id="edAchBloc">
+   <label>Nombre de sacs</label><input id="edNb" type="number" step="1" inputmode="numeric">
+   <label>Poids d'un sac (kg)</label><input id="edPoids" type="number" step="0.1" inputmode="decimal">
+   <label>Prix d'un sac (€)</label><input id="edPrix" type="number" step="0.01" inputmode="decimal">
+  </div>
   <button onclick="validerEdition()">Enregistrer</button>
   <button class="sec" onclick="fermerEdition()">Annuler</button>
  </div>
@@ -317,20 +328,34 @@ function recharger(){
   if(!nb||nb<1){alert('Indique le nombre de récipients (1 ou plus).');return;}
   if(!poids||poids<=0){alert('Poids invalide : indique le poids d\'un récipient en kg (ex. 0,86).');return;}
   const kg=Math.round(nb*poids*1000)/1000;
+  const passe=recQuand.value?new Date(recQuand.value):null;
+  if(passe&&isNaN(passe)){alert('Date invalide.');return;}
+  if(passe&&passe>new Date()){alert('La date est dans le futur.');return;}
+  const h=passe||new Date();
   const s=saisonActive();
-  d.recharges.push({t:new Date().toISOString(),kg:kg,consigne:num(recConsigne.value),salon:num(recSalon.value),ext:temperatureExt,prix:prixMoyen(),saison:s?s.nom:null});
-  recSalon.value='';recNb.value=1;majTotalRec();
+  d.recharges.push({t:h.toISOString(),kg:kg,consigne:num(recConsigne.value),salon:num(recSalon.value),ext:passe?null:temperatureExt,prix:prixMoyen(),saison:passe?saisonNom(h):(s?s.nom:null)});
+  trierParDate(d.recharges);
+  recSalon.value='';recNb.value=1;recQuand.value='';majTotalRec();majBoutonRec();
   sauver();
   const kgAch=d.achats.reduce((a,x)=>a+x.nb*x.poids,0),kgUt=d.recharges.reduce((a,x)=>a+x.kg,0);
-  const h=new Date();
-  confirmRec.textContent='✓ '+nb+' récipient'+(nb>1?'s':'')+' = '+String(kg).replace('.',',')+' kg enregistré à '+p2(h.getHours())+':'+p2(h.getMinutes())+' · reste '+Math.max(0,kgAch-kgUt).toFixed(1).replace('.',',')+' kg';
+  confirmRec.textContent='✓ '+nb+' récipient'+(nb>1?'s':'')+' = '+String(kg).replace('.',',')+' kg enregistré '+(passe?'le '+h.toLocaleDateString('fr-FR')+' ':'')+'à '+p2(h.getHours())+':'+p2(h.getMinutes())+' · reste '+Math.max(0,kgAch-kgUt).toFixed(1).replace('.',',')+' kg';
  }catch(e){alert('Erreur au rechargement : '+e.message);}
 }
 function acheter(){
  const nb=parseFloat(achNb.value),poids=parseFloat(achPoids.value),prix=parseFloat(achPrix.value);
- if(!nb||!poids||!prix)return;
- d.achats.push({t:new Date().toISOString(),nb:nb,poids:poids,prix:prix});
+ if(!nb||!poids||!prix){alert('Indique le nombre de sacs, le poids et le prix.');return;}
+ const auj=cleJour(new Date()),jour=achDate.value||auj;
+ if(jour>auj){alert('La date est dans le futur.');return;}
+ const a=jour.split('-').map(Number);
+ const t=jour===auj?new Date():new Date(a[0],a[1]-1,a[2],12,0);
+ d.achats.push({t:t.toISOString(),nb:nb,poids:poids,prix:prix});
+ trierParDate(d.achats);
+ achDate.value=auj;
  sauver();
+ confirmAch.textContent='✓ Achat de '+nb+' sacs enregistré le '+t.toLocaleDateString('fr-FR');
+}
+function majBoutonRec(){
+ btnRec.textContent=recQuand.value?'🔥 Enregistrer le rechargement passé':'🔥 Recharger maintenant';
 }
 function ouvrirEdition(titre,iso,avecHeure){
  const dt=new Date(iso);
@@ -338,19 +363,25 @@ function ouvrirEdition(titre,iso,avecHeure){
  edDate.value=cleJour(dt);
  edHeure.value=p2(dt.getHours())+':'+p2(dt.getMinutes());
  document.getElementById('edHeureBloc').style.display=avecHeure?'block':'none';
+ document.getElementById('edRecBloc').style.display=avecHeure?'block':'none';
+ document.getElementById('edAchBloc').style.display=avecHeure?'none':'block';
  document.getElementById('editeur').style.display='flex';
 }
 function fermerEdition(){edition=null;document.getElementById('editeur').style.display='none';}
 function editerRecharge(i){
  const r=d.recharges[i];if(!r)return;
  edition={type:'r',i:i};
- ouvrirEdition('Date du rechargement ('+String(r.kg).replace('.',',')+' kg)',r.t,true);
+ edKg.value=r.kg;
+ ouvrirEdition('Modifier le rechargement',r.t,true);
 }
 function editerAchat(i){
  const a=d.achats[i];if(!a)return;
  edition={type:'a',i:i};
- ouvrirEdition('Date de l\'achat ('+a.nb+' sacs)',a.t,false);
+ edNb.value=a.nb;edPoids.value=a.poids;edPrix.value=a.prix;
+ ouvrirEdition('Modifier l\'achat',a.t,false);
 }
+function trierParDate(t){t.sort((x,y)=>new Date(x.t)-new Date(y.t));}
+function saisonNom(dt){const s=saisonDe(dt);return s==='Hors saison'?null:s;}
 function validerEdition(){
  if(!edition)return;
  if(!edDate.value){alert('Indique une date.');return;}
@@ -358,9 +389,20 @@ function validerEdition(){
  let hh=12,mm=0;
  if(edition.type==='r'){const h=(edHeure.value||'').split(':').map(Number);if(h.length===2&&isFinite(h[0])&&isFinite(h[1])){hh=h[0];mm=h[1];}}
  else{const o=new Date(d.achats[edition.i].t);hh=o.getHours();mm=o.getMinutes();}
- const iso=new Date(a[0],a[1]-1,a[2],hh,mm).toISOString();
- if(edition.type==='r'){d.recharges[edition.i].t=iso;d.recharges.sort((x,y)=>new Date(x.t)-new Date(y.t));}
- else{d.achats[edition.i].t=iso;d.achats.sort((x,y)=>new Date(x.t)-new Date(y.t));}
+ const dt=new Date(a[0],a[1]-1,a[2],hh,mm);
+ if(edition.type==='r'){
+  const kg=num(edKg.value);
+  if(!kg||kg<=0){alert('Quantité invalide (kg).');return;}
+  const r=d.recharges[edition.i];
+  r.t=dt.toISOString();r.kg=Math.round(kg*1000)/1000;r.saison=saisonNom(dt);
+  trierParDate(d.recharges);
+ }else{
+  const nb=num(edNb.value),poids=num(edPoids.value),prix=num(edPrix.value);
+  if(!nb||nb<=0||!poids||poids<=0||prix==null||prix<0){alert('Nombre de sacs, poids ou prix invalide.');return;}
+  const x=d.achats[edition.i];
+  x.t=dt.toISOString();x.nb=nb;x.poids=poids;x.prix=prix;
+  trierParDate(d.achats);
+ }
  fermerEdition();
  sauver();
 }
@@ -484,12 +526,12 @@ function afficherHoraires(){
  const w=dateDeCle(k).getDay(),typeNom=(w===0||w===6)?'week-end':'semaine';
  if(!p){
   plagesJour.innerHTML='';
-  libJourH.textContent='Avant le début du suivi ('+H.depuis+')';
+  libJourH.textContent='Jour non renseigné (avant le début du suivi, le '+dateDeCle(H.depuis).toLocaleDateString('fr-FR')+'). Ajoute une plage pour saisir les heures de marche de ce jour.';
   totalJourH.textContent='';
   return;
  }
  plagesJour.innerHTML=lignesPlages('jour',p);
- libJourH.textContent=H.jours[k]?'Horaires modifiés pour ce jour':'Horaire type ('+typeNom+')';
+ libJourH.textContent=H.jours[k]?(k<H.depuis?'Saisi à la main (avant le début du suivi)':'Horaires modifiés pour ce jour'):'Horaire type ('+typeNom+')';
  const mn=p.reduce((a,x)=>a+(x[1]-x[0]),0);
  totalJourH.textContent=p.length?'Marche : '+Math.floor(mn/60)+' h'+(mn%60?' '+p2(mn%60):''):'Poêle éteint toute la journée';
 }
@@ -541,7 +583,6 @@ function supprimerPlage(cible,i){
  enregistrerPlages(cible,p);
 }
 function ajouterPlage(cible){
- if(cible==='jour'&&!plagesDuJour(jourH.value)&&jourH.value<d.horaires.depuis){alert('Ce jour est avant le début du suivi.');return;}
  const p=plagesCopie(cible);
  let a=p.length?Math.max(...p.map(x=>x[1]))+60:480;
  if(a>1320)a=1080;
@@ -558,7 +599,8 @@ function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
 function afficherStats(){
  const mode=periode.value,groupes={};
  const grp=c=>(groupes[c]=groupes[c]||{kg:0,eur:0,kgSuivi:0,min:0});
- const depuis=d.horaires.depuis;
+ // premier jour renseigné : début du suivi ou jour passé saisi à la main
+ const depuis=Object.keys(d.horaires.jours).concat(d.horaires.depuis).sort()[0];
  d.recharges.forEach(r=>{
   const dt=new Date(r.t);
   let cle;
@@ -568,7 +610,7 @@ function afficherStats(){
   const g=grp(cle);
   g.kg+=r.kg;
   g.eur+=r.kg*(r.prix||0);
-  if(cleJour(dt)>=depuis)g.kgSuivi+=r.kg;
+  if(plagesDuJour(cleJour(dt)))g.kgSuivi+=r.kg;
  });
  const auj=cleJour(new Date());
  for(let dt=dateDeCle(depuis),n=0;cleJour(dt)<=auj&&n<3700;dt.setDate(dt.getDate()+1),n++){
@@ -819,6 +861,7 @@ function majResume(){
  resumeJour.textContent=t;
 }
 majTotalRec();
+achDate.value=cleJour(new Date());
 afficher();
 initMeteo();
 onglet((function(){try{return localStorage.getItem('granules_onglet')||'accueil';}catch(e){return 'accueil';}})());
