@@ -6,134 +6,213 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Granulés">
 <title>Granulés</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
 <style>
- body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:#f4f1ec;color:#222}
- h1{font-size:22px;margin:0 0 12px}
- h2{font-size:17px;margin:20px 0 8px}
- .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
- button{font-size:17px;padding:12px 16px;border:0;border-radius:10px;background:#c4561a;color:#fff;margin:4px 4px 4px 0}
- button.sec{background:#666}
+ :root{--o:#c4561a;--bg:#f4f1ec}
+ *{-webkit-tap-highlight-color:transparent}
+ body{font-family:-apple-system,sans-serif;margin:0 auto;padding:14px 14px 96px;background:var(--bg);color:#222;max-width:600px}
+ h1{font-size:21px;margin:0}
+ h2{font-size:17px;margin:0 0 10px}
+ .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+ .badge{background:#fff;border-radius:20px;padding:4px 12px;font-size:13px;color:#555}
+ .page{display:none}
+ .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+ label{display:block;font-size:14px;color:#555;margin-top:8px}
+ button{font-size:17px;padding:12px 16px;border:0;border-radius:12px;background:var(--o);color:#fff;margin:4px 4px 4px 0}
+ button.sec{background:#6b6b6b}
  button.sup{background:#b00020;font-size:14px;padding:6px 10px;margin:0}
- input,select{font-size:17px;padding:8px;width:100%;box-sizing:border-box;margin:4px 0 8px}
+ button.gros{width:100%;font-size:20px;padding:16px;margin:10px 0 4px}
+ input,select{font-size:17px;padding:10px;width:100%;box-sizing:border-box;margin:4px 0 8px;border:1px solid #ddd;border-radius:10px;background:#fff}
  table{width:100%;border-collapse:collapse;font-size:14px}
- td,th{padding:4px;border-bottom:1px solid #eee;text-align:left}
- .big{font-size:28px;font-weight:bold}
+ td,th{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}
+ .big{font-size:40px;font-weight:bold;line-height:1.1}
  .small{color:#666;font-size:13px}
+ .ok{font-weight:bold;color:#2a7;margin-top:6px}
  .nav{display:flex;gap:6px;align-items:center}
- .nav input{flex:1;margin:4px 0}
- .nav button{margin:4px 0;padding:8px 14px}
+ .nav input,.nav select{flex:1;margin:4px 0}
+ .nav button{margin:4px 0;padding:10px 14px}
+ .step{display:flex;align-items:center;gap:8px}
+ .step button{width:54px;height:54px;font-size:28px;padding:0;margin:0;background:#ebe6dd;color:#222;flex:none}
+ .step input{text-align:center;font-size:24px;margin:0;font-weight:bold}
+ .seg{display:flex;background:#e8e3da;border-radius:12px;padding:3px;margin-bottom:10px}
+ .seg button{flex:1;background:none;color:#444;margin:0;padding:9px 4px;font-size:15px;border-radius:10px}
+ .seg button.on{background:#fff;color:var(--o);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+ details{margin-top:6px}
+ summary{font-size:16px;padding:10px 0;color:#444}
+ .tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid #ddd;padding-bottom:env(safe-area-inset-bottom);z-index:10}
+ .tabbar button{flex:1;background:none;color:#777;border-radius:0;margin:0;padding:8px 2px 6px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px}
+ .tabbar button b{font-size:22px;font-weight:normal}
+ .tabbar button.on{color:var(--o);font-weight:600}
  svg text{font-size:10px;fill:#666}
  #courbe{touch-action:pan-y}
 </style>
 </head>
 <body>
-<h1>🔥 Suivi granulés <span class="small">v6</span></h1>
+<div class="top"><h1><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="38" height="38" style="border-radius:9px;vertical-align:middle;margin-right:8px">
+ <defs>
+  <linearGradient id="fondL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2a22"/><stop offset="1" stop-color="#1e1512"/></linearGradient>
+  <linearGradient id="flL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd54a"/><stop offset="0.55" stop-color="#ff8a1f"/><stop offset="1" stop-color="#d9441a"/></linearGradient>
+ </defs>
+ <rect width="180" height="180" fill="url(#fondL)"/>
+ <path d="M90 22 C96 44 122 58 122 88 C122 108 108 120 90 120 C72 120 58 108 58 88 C58 74 66 66 72 56 C74 66 80 70 84 70 C80 52 84 36 90 22 Z" fill="url(#flL)"/>
+ <path d="M90 64 C94 76 106 82 106 96 C106 107 99 113 90 113 C81 113 74 107 74 96 C74 88 80 84 84 78 C86 84 88 86 90 86 C89 78 89 72 90 64 Z" fill="#ffe9a8"/>
+ <g fill="#b8814f" stroke="#7a4f2a" stroke-width="2">
+  <rect x="38" y="128" width="30" height="16" rx="8"/>
+  <rect x="75" y="132" width="30" height="16" rx="8" transform="rotate(-6 90 140)"/>
+  <rect x="112" y="128" width="30" height="16" rx="8" transform="rotate(5 127 136)"/>
+  <rect x="56" y="146" width="30" height="16" rx="8" transform="rotate(4 71 154)"/>
+  <rect x="94" y="147" width="30" height="16" rx="8" transform="rotate(-4 109 155)"/>
+ </g>
+ <g fill="#d9a46e"><rect x="44" y="131" width="12" height="4" rx="2"/><rect x="118" y="131" width="12" height="4" rx="2"/><rect x="62" y="149" width="12" height="4" rx="2"/><rect x="100" y="150" width="12" height="4" rx="2"/><rect x="81" y="135" width="12" height="4" rx="2"/></g>
+</svg>
+Granulés</h1><span class="badge" id="badgeSaison">Saison : <span id="saisonNom">aucune</span></span></div>
 
-<div class="card">
- <div class="small">Saison en cours : <span id="saisonNom">aucune</span></div>
- <div class="big"><span id="stockSacs">0</span> sacs en stock</div>
- <div class="small" id="stockKg"></div>
- <div class="small" id="meteo"></div>
-</div>
-
-<div class="card">
- <h2>Rechargement</h2>
- <label>Nombre de récipients</label>
- <input id="recNb" type="number" min="1" step="1" value="1" inputmode="numeric" oninput="majTotalRec()">
- <label>Poids d'un récipient (kg)</label>
- <input id="recKg" type="number" step="0.01" value="0.86" oninput="majTotalRec()">
- <div class="small" id="totalRec"></div>
- <label>Consigne (°C)</label>
- <input id="recConsigne" type="number" step="0.5" value="19">
- <label>Température du salon (°C, facultatif)</label>
- <input id="recSalon" type="number" step="0.1">
- <button onclick="recharger()">Recharger maintenant</button>
- <div id="confirmRec" style="font-weight:bold;color:#2a7;margin-top:6px"></div>
- <button class="sec" id="btnAnnuler" onclick="annulerDernier()" style="display:none;margin-top:8px"></button>
-</div>
-
-<div class="card">
- <h2>Achat de sacs</h2>
- <label>Nombre de sacs</label>
- <input id="achNb" type="number" value="3">
- <label>Poids d'un sac (kg)</label>
- <input id="achPoids" type="number" value="15">
- <label>Prix d'un sac (€)</label>
- <input id="achPrix" type="number" step="0.01" value="6.50">
- <button onclick="acheter()">Enregistrer l'achat</button>
-</div>
-
-<div class="card">
- <h2>Achats enregistrés</h2>
- <table id="histoAchats"></table>
-</div>
-
-<div class="card">
- <h2>Saison</h2>
- <button onclick="demarrerSaison()">Démarrer une saison</button>
- <button class="sec" onclick="cloturerSaison()">Clôturer la saison</button>
-</div>
-
-<div class="card">
- <h2>Horaires de marche</h2>
- <div class="nav">
-  <button class="sec" onclick="changerJourH(-1)">◀</button>
-  <input id="jourH" type="date" onchange="afficherHoraires()">
-  <button class="sec" onclick="changerJourH(1)">▶</button>
+<!-- ===== ACCUEIL ===== -->
+<div class="page" id="page-accueil">
+ <div class="card">
+  <div class="big"><span id="stockSacs">0</span> <span style="font-size:20px;font-weight:normal">sacs en stock</span></div>
+  <div class="small" id="stockKg"></div>
+  <div class="small" id="meteo"></div>
+  <div class="small" id="resumeJour" style="margin-top:6px"></div>
  </div>
- <div class="small" id="libJourH"></div>
- <div id="plagesJour"></div>
- <div class="small" id="totalJourH"></div>
- <button onclick="ajouterPlage()">+ Ajouter une plage</button>
- <button class="sec" onclick="eteintJourH()">Éteint toute la journée</button>
- <button class="sec" onclick="typeJourH()">Horaire type</button>
- <h2>Horaires types</h2>
- <label>Semaine (lundi à vendredi)</label>
- <input id="hSemaine" type="text">
- <label>Week-end (samedi et dimanche)</label>
- <input id="hWeekend" type="text">
- <label>Suivi des heures depuis le</label>
- <input id="hDepuis" type="date">
- <button class="sec" onclick="enregistrerTypes()">Enregistrer les horaires types</button>
-</div>
 
-<div class="card">
- <h2>Consommation et coût</h2>
- <select id="periode" onchange="afficherStats()">
-  <option value="semaine">Par semaine</option>
-  <option value="mois">Par mois</option>
-  <option value="saison">Par saison</option>
- </select>
- <table id="stats"></table>
- <div class="small" id="prixMoyen"></div>
-</div>
-
-<div class="card">
- <h2>Derniers rechargements</h2>
- <table id="histo"></table>
-</div>
-
-<div class="card">
- <h2>Température du salon</h2>
- <div class="nav">
-  <button class="sec" onclick="changerJour(-1)">◀</button>
-  <input id="jour" type="date" onchange="afficherCourbe()">
-  <button class="sec" onclick="changerJour(1)">▶</button>
+ <div class="card">
+  <h2>Recharger le poêle</h2>
+  <label>Nombre de récipients</label>
+  <div class="step">
+   <button onclick="pas('recNb',-1,1)">−</button>
+   <input id="recNb" type="number" min="1" step="1" value="1" inputmode="numeric" oninput="majTotalRec()">
+   <button onclick="pas('recNb',1,1)">+</button>
+  </div>
+  <div class="small" id="totalRec" style="margin-top:4px"></div>
+  <label>Consigne (°C)</label>
+  <div class="step">
+   <button onclick="pas('recConsigne',-0.5,5)">−</button>
+   <input id="recConsigne" type="number" step="0.5" value="19">
+   <button onclick="pas('recConsigne',0.5,5)">+</button>
+  </div>
+  <details>
+   <summary>Plus d'options</summary>
+   <label>Poids d'un récipient (kg)</label>
+   <input id="recKg" type="number" step="0.01" value="0.86" oninput="majTotalRec()">
+   <label>Température du salon (°C, facultatif)</label>
+   <input id="recSalon" type="number" step="0.1">
+  </details>
+  <button class="gros" onclick="recharger()">🔥 Recharger maintenant</button>
+  <div class="ok" id="confirmRec"></div>
+  <button class="sec" id="btnAnnuler" onclick="annulerDernier()" style="display:none;margin-top:8px;font-size:15px"></button>
  </div>
- <svg id="courbe" viewBox="0 0 340 200" width="100%"></svg>
- <div class="big" id="moyJour"></div>
- <div class="small" id="detailJour"></div>
- <div class="small" id="pointJour"></div>
- <button class="sec" onclick="document.getElementById('fichierTempro').click()">Importer un CSV Tempro</button>
- <input id="fichierTempro" type="file" accept=".csv,.txt,text/csv,text/plain,text/comma-separated-values" style="display:none" onchange="importerTempro(event)">
- <div class="small" id="infoTempro"></div>
+
+ <div class="card">
+  <h2>Derniers rechargements</h2>
+  <table id="histo"></table>
+ </div>
 </div>
 
-<div class="card">
- <h2>Sauvegarde</h2>
- <button class="sec" onclick="exporter()">Exporter</button>
- <button class="sec" onclick="document.getElementById('fichier').click()">Importer</button>
- <input id="fichier" type="file" accept=".json" style="display:none" onchange="importer(event)">
+<!-- ===== HORAIRES ===== -->
+<div class="page" id="page-horaires">
+ <div class="card">
+  <h2>Marche du poêle</h2>
+  <div class="nav">
+   <button class="sec" onclick="changerJourH(-1)">◀</button>
+   <input id="jourH" type="date" onchange="afficherHoraires()">
+   <button class="sec" onclick="changerJourH(1)">▶</button>
+  </div>
+  <button class="sec" onclick="aujourdhuiH()" style="font-size:14px;padding:8px 12px;margin:0 0 8px">Aujourd'hui</button>
+  <div class="small" id="libJourH"></div>
+  <div id="plagesJour"></div>
+  <div class="small" id="totalJourH" style="margin:4px 0"></div>
+  <button onclick="ajouterPlage('jour')">+ Ajouter une plage</button>
+  <button class="sec" onclick="eteintJourH()">Éteint toute la journée</button>
+  <button class="sec" onclick="typeJourH()">↺ Horaire type</button>
+ </div>
+ <div class="card">
+  <details>
+   <summary><b>Horaires types</b> (semaine, week-end)</summary>
+   <label>Semaine (lundi à vendredi)</label>
+   <div id="hSemaine"></div>
+   <button class="sec" onclick="ajouterPlage('semaine')">+ Ajouter une plage</button>
+   <label style="margin-top:12px">Week-end (samedi et dimanche)</label>
+   <div id="hWeekend"></div>
+   <button class="sec" onclick="ajouterPlage('weekend')">+ Ajouter une plage</button>
+   <label style="margin-top:12px">Suivi des heures depuis le</label>
+   <input id="hDepuis" type="date" onchange="changerDepuis()">
+  </details>
+ </div>
+</div>
+
+<!-- ===== STATS ===== -->
+<div class="page" id="page-stats">
+ <div class="card">
+  <h2>Consommation et coût</h2>
+  <input id="periode" type="hidden" value="semaine">
+  <div class="seg">
+   <button id="seg-semaine" class="on" onclick="setPeriode('semaine')">Semaine</button>
+   <button id="seg-mois" onclick="setPeriode('mois')">Mois</button>
+   <button id="seg-saison" onclick="setPeriode('saison')">Saison</button>
+  </div>
+  <table id="stats"></table>
+  <div class="small" id="prixMoyen" style="margin-top:8px"></div>
+  <div class="small">kg/h = kg rechargés ÷ heures de marche (depuis le début du suivi des heures).</div>
+ </div>
+</div>
+
+<!-- ===== SALON ===== -->
+<div class="page" id="page-salon">
+ <div class="card">
+  <h2>Température du salon</h2>
+  <div class="nav">
+   <button class="sec" onclick="changerJour(-1)">◀</button>
+   <input id="jour" type="date" onchange="afficherCourbe()">
+   <button class="sec" onclick="changerJour(1)">▶</button>
+  </div>
+  <svg id="courbe" viewBox="0 0 340 200" width="100%"></svg>
+  <div class="big" id="moyJour" style="font-size:28px"></div>
+  <div class="small" id="detailJour"></div>
+  <div class="small" id="pointJour"></div>
+  <button class="sec" onclick="document.getElementById('fichierTempro').click()" style="margin-top:8px">Importer un CSV Tempro</button>
+  <input id="fichierTempro" type="file" accept=".csv,.txt,text/csv,text/plain,text/comma-separated-values" style="display:none" onchange="importerTempro(event)">
+  <div class="small" id="infoTempro"></div>
+ </div>
+</div>
+
+<!-- ===== RÉGLAGES ===== -->
+<div class="page" id="page-reglages">
+ <div class="card">
+  <h2>Acheter des sacs</h2>
+  <label>Nombre de sacs</label>
+  <input id="achNb" type="number" value="3" inputmode="numeric">
+  <label>Poids d'un sac (kg)</label>
+  <input id="achPoids" type="number" value="15">
+  <label>Prix d'un sac (€)</label>
+  <input id="achPrix" type="number" step="0.01" value="6.50">
+  <button class="gros" onclick="acheter()">Enregistrer l'achat</button>
+  <details>
+   <summary>Achats enregistrés</summary>
+   <table id="histoAchats"></table>
+  </details>
+ </div>
+ <div class="card">
+  <h2>Saison de chauffe</h2>
+  <button onclick="demarrerSaison()">Démarrer une saison</button>
+  <button class="sec" onclick="cloturerSaison()">Clôturer la saison</button>
+ </div>
+ <div class="card">
+  <h2>Sauvegarde</h2>
+  <div class="small" style="margin-bottom:6px">Exporte régulièrement ton fichier de sauvegarde.</div>
+  <button class="sec" onclick="exporter()">Exporter</button>
+  <button class="sec" onclick="document.getElementById('fichier').click()">Importer</button>
+  <input id="fichier" type="file" accept=".json" style="display:none" onchange="importer(event)">
+ </div>
+</div>
+
+<div class="tabbar">
+ <button id="tab-accueil" onclick="onglet('accueil')"><b>🏠</b>Accueil</button>
+ <button id="tab-horaires" onclick="onglet('horaires')"><b>⏰</b>Horaires</button>
+ <button id="tab-stats" onclick="onglet('stats')"><b>📊</b>Stats</button>
+ <button id="tab-salon" onclick="onglet('salon')"><b>🌡️</b>Salon</button>
+ <button id="tab-reglages" onclick="onglet('reglages')"><b>⚙️</b>Réglages</button>
 </div>
 
 <script>
@@ -313,8 +392,8 @@ function changerJourH(delta){
 function afficherHoraires(){
  const H=d.horaires;
  if(!jourH.value)jourH.value=cleJour(new Date());
- hSemaine.value=fmtPlages(H.semaine);
- hWeekend.value=fmtPlages(H.weekend);
+ hSemaine.innerHTML=lignesPlages('semaine',H.semaine);
+ hWeekend.innerHTML=lignesPlages('weekend',H.weekend);
  hDepuis.value=H.depuis;
  const k=jourH.value,p=plagesDuJour(k);
  const w=dateDeCle(k).getDay(),typeNom=(w===0||w===6)?'week-end':'semaine';
@@ -324,44 +403,32 @@ function afficherHoraires(){
   totalJourH.textContent='';
   return;
  }
- plagesJour.innerHTML=p.map((x,i)=>'<div class="nav"><input type="time" value="'+hhmm(x[0])+'" onchange="majPlage('+i+',0,this.value)"><span>à</span><input type="time" value="'+hhmm(x[1])+'" onchange="majPlage('+i+',1,this.value)"><button class="sup" onclick="supprimerPlage('+i+')">✕</button></div>').join('');
+ plagesJour.innerHTML=lignesPlages('jour',p);
  libJourH.textContent=H.jours[k]?'Horaires modifiés pour ce jour':'Horaire type ('+typeNom+')';
  const mn=p.reduce((a,x)=>a+(x[1]-x[0]),0);
  totalJourH.textContent=p.length?'Marche : '+Math.floor(mn/60)+' h'+(mn%60?' '+p2(mn%60):''):'Poêle éteint toute la journée';
 }
-function hhmm(m){m=Math.min(m,1439);return p2(Math.floor(m/60))+':'+p2(m%60);}
-function plagesCopie(){return (plagesDuJour(jourH.value)||[]).map(x=>x.slice());}
-function enregistrerPlages(p){
- d.horaires.jours[jourH.value]=p.sort((a,b)=>a[0]-b[0]);
- sauver();
+// cible : 'jour' (le jour affiché), 'semaine' ou 'weekend' (horaires types)
+function listeHeures(courante){
+ const v=[];
+ for(let m=0;m<=1440;m+=30)v.push(m);
+ if(courante!=null&&!v.includes(courante)){v.push(courante);v.sort((a,b)=>a-b);}
+ return v;
 }
-function majPlage(i,pos,val){
- const m=parseHeure(val),p=plagesCopie();
- if(m==null||!p[i]){afficherHoraires();return;}
- p[i][pos]=m;
- if(p[i][1]<=p[i][0]){alert('L\'heure de fin doit être après l\'heure de début.');afficherHoraires();return;}
- enregistrerPlages(p);
+function selectHeure(cible,i,pos,courante){
+ let h='<select onchange="majPlage(\''+cible+'\','+i+','+pos+',this.value)" style="flex:1;margin:4px 0">';
+ listeHeures(courante).forEach(m=>{h+='<option value="'+m+'"'+(m===courante?' selected':'')+'>'+fmtH(m)+'</option>';});
+ return h+'</select>';
 }
-function supprimerPlage(i){
- const p=plagesCopie();
- p.splice(i,1);
- enregistrerPlages(p);
+function lignesPlages(cible,p){
+ return p.map((x,i)=>'<div class="nav">'+selectHeure(cible,i,0,x[0])+'<span>à</span>'+selectHeure(cible,i,1,x[1])+'<button class="sup" onclick="supprimerPlage(\''+cible+'\','+i+')">✕</button></div>').join('');
 }
-function ajouterPlage(){
- if(!plagesDuJour(jourH.value)&&jourH.value<d.horaires.depuis){alert('Ce jour est avant le début du suivi.');return;}
- const p=plagesCopie();
- let a=p.length?Math.max(...p.map(x=>x[1]))+60:480;
- if(a>1320)a=1080;
- p.push([a,Math.min(a+60,1439)]);
- enregistrerPlages(p);
+function plagesCopie(cible){
+ const p=cible==='jour'?plagesDuJour(jourH.value):d.horaires[cible];
+ return (p||[]).map(x=>x.slice());
 }
-function eteintJourH(){d.horaires.jours[jourH.value]=[];sauver();}
-function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
-function enregistrerTypes(){
- const s=parsePlages(hSemaine.value),w=parsePlages(hWeekend.value);
- if(s===null||w===null){alert('Format non reconnu. Exemple : 5h-7h, 16h30-21h');return;}
- if(!hDepuis.value){alert('Indique la date de début du suivi.');return;}
- // Fige les jours déjà passés avec les anciens horaires types, pour ne pas les modifier
+// Fige les jours déjà passés avec les horaires types actuels avant de les modifier
+function gelerPasses(){
  const H=d.horaires,hier=new Date();
  hier.setDate(hier.getDate()-1);
  const finGel=cleJour(hier);
@@ -369,9 +436,40 @@ function enregistrerTypes(){
   const k=cleJour(dt);
   if(!H.jours[k])H.jours[k]=typePour(k).map(x=>x.slice());
  }
- H.semaine=s;H.weekend=w;H.depuis=hDepuis.value;
+}
+function enregistrerPlages(cible,p){
+ p.sort((a,b)=>a[0]-b[0]);
+ if(cible==='jour')d.horaires.jours[jourH.value]=p;
+ else{gelerPasses();d.horaires[cible]=p;}
  sauver();
 }
+function majPlage(cible,i,pos,val){
+ const m=parseInt(val,10),p=plagesCopie(cible);
+ if(!isFinite(m)||!p[i]){afficherHoraires();return;}
+ p[i][pos]=m;
+ if(p[i][1]<=p[i][0]){alert('L\'heure de fin doit être après l\'heure de début.');afficherHoraires();return;}
+ enregistrerPlages(cible,p);
+}
+function supprimerPlage(cible,i){
+ const p=plagesCopie(cible);
+ p.splice(i,1);
+ enregistrerPlages(cible,p);
+}
+function ajouterPlage(cible){
+ if(cible==='jour'&&!plagesDuJour(jourH.value)&&jourH.value<d.horaires.depuis){alert('Ce jour est avant le début du suivi.');return;}
+ const p=plagesCopie(cible);
+ let a=p.length?Math.max(...p.map(x=>x[1]))+60:480;
+ if(a>1320)a=1080;
+ p.push([a,a+60]);
+ enregistrerPlages(cible,p);
+}
+function changerDepuis(){
+ if(!hDepuis.value)return;
+ d.horaires.depuis=hDepuis.value;
+ sauver();
+}
+function eteintJourH(){d.horaires.jours[jourH.value]=[];sauver();}
+function typeJourH(){delete d.horaires.jours[jourH.value];sauver();}
 function afficherStats(){
  const mode=periode.value,groupes={};
  const grp=c=>(groupes[c]=groupes[c]||{kg:0,eur:0,kgSuivi:0,min:0});
@@ -433,6 +531,7 @@ function afficher(){
  }
  histo.innerHTML=h;
  afficherHoraires();
+ majResume();
  afficherStats();
  afficherCourbe();
  majAnnuler();
@@ -607,9 +706,39 @@ function afficherCourbe(){
  svg.onpointerdown=choisir;
  svg.onpointermove=ev=>{if(ev.buttons||ev.pointerType==='touch')choisir(ev);};
 }
+
+/* ---- Navigation et confort ---- */
+function onglet(n){
+ ['accueil','horaires','stats','salon','reglages'].forEach(x=>{
+  document.getElementById('page-'+x).style.display=(x===n)?'block':'none';
+  document.getElementById('tab-'+x).classList.toggle('on',x===n);
+ });
+ try{localStorage.setItem('granules_onglet',n);}catch(e){}
+ window.scrollTo(0,0);
+}
+function setPeriode(v){
+ periode.value=v;
+ ['semaine','mois','saison'].forEach(x=>document.getElementById('seg-'+x).classList.toggle('on',x===v));
+ afficherStats();
+}
+function pas(id,delta,min){
+ const el=document.getElementById(id);
+ let v=num(el.value);if(v==null)v=0;
+ el.value=Math.max(min,Math.round((v+delta)*100)/100);
+ if(id==='recNb'||id==='recKg')majTotalRec();
+}
+function aujourdhuiH(){jourH.value=cleJour(new Date());afficherHoraires();}
+function majResume(){
+ const k=cleJour(new Date()),p=plagesDuJour(k);
+ let t='Aujourd\'hui : '+(p?(p.length?'poêle en marche '+fmtPlages(p):'poêle éteint'):'horaires non suivis');
+ const kg=d.recharges.filter(r=>cleJour(new Date(r.t))===k).reduce((a,r)=>a+r.kg,0);
+ t+=' · '+(kg?kg.toFixed(2).replace('.',',')+' kg rechargés':'pas encore rechargé');
+ resumeJour.textContent=t;
+}
 majTotalRec();
 afficher();
 initMeteo();
+onglet((function(){try{return localStorage.getItem('granules_onglet')||'accueil';}catch(e){return 'accueil';}})());
 </script>
 </body>
 </html>
