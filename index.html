@@ -276,7 +276,7 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
 </div>
 
 <script>
-const VERSION='2026-11-27.7';
+const VERSION='2026-11-27.8';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -333,7 +333,11 @@ localStorage.setItem(CLE,JSON.stringify(d));
 let temperatureExt=null;
 let nbHisto=10;
 let edition=null;
-function sauver(){localStorage.setItem(CLE,JSON.stringify(d));afficher();}
+function sauver(){
+ // Modification dans l'onglet Horaires : on attend la fin de la saisie avant la pop-up de rappel
+ if(document.getElementById('page-horaires').style.display==='block'){derniereModifH=Date.now();clearTimeout(minuteurPop);minuteurPop=setTimeout(majReservoir,DELAI_POP+500);}
+ localStorage.setItem(CLE,JSON.stringify(d));afficher();
+}
 // saison qui couvre aujourd'hui (fin vide ou dans le futur), sinon celle sans date de fin
 function saisonActive(){
  const k=cleJour(new Date());
@@ -922,7 +926,7 @@ function onglet(n){
   document.getElementById('page-'+x).style.display=(x===n)?'block':'none';
   document.getElementById('tab-'+x).classList.toggle('on',x===n);
  });
- if(n==='accueil')majReservoir();
+ majReservoir();
  try{localStorage.setItem('granules_onglet',n);}catch(e){}
  window.scrollTo(0,0);
 }
@@ -1061,7 +1065,7 @@ function majReservoir(){
  const dejaVue=popVue&&popVue.rp===(rp&&rp.t)&&(hA?popVue.h!=null&&Math.abs(hA-popVue.h)<=15*60000:popVue.h==null);
  const popOuverte=popRappel.style.display!=='none';
  if(!msg&&popOuverte)popRappel.style.display='none';
- if(msg&&(!dejaVue||popOuverte)){
+ if(msg&&(!dejaVue||popOuverte)&&!saisieHorairesEnCours()){
   popVue={rp:rp.t,h:hA?hA.getTime():null};
   try{localStorage.setItem('granules_pop',JSON.stringify(popVue));}catch(x){}
   popTexte.textContent=hA?'L\'alerte « poêle presque vide » est maintenant prévue '+fmtQuand(hA)+', au lieu de '+fmtQuand(new Date(rp.t))+' dans ton Calendrier.':'Plus aucune alerte n\'est prévue dans les 30 prochains jours : le rappel du Calendrier ('+fmtQuand(new Date(rp.t))+') n\'est plus valable, tu peux le supprimer.';
@@ -1097,6 +1101,10 @@ function ajouterRappel(){
  d.reservoir.rappel={t:deb.toISOString(),recharge:e.t0.toISOString()};
  sauver();
 }
+// Pop-up retardée tant qu'on modifie des plages (20 s sans modification, ou sortie de l'onglet Horaires)
+const DELAI_POP=20000;
+let derniereModifH=0,minuteurPop=null;
+function saisieHorairesEnCours(){return document.getElementById('page-horaires').style.display==='block'&&Date.now()-derniereModifH<DELAI_POP;}
 let popVue=(function(){try{return JSON.parse(localStorage.getItem('granules_pop'))||null;}catch(e){return null;}})();
 function fermerPop(maj){
  popRappel.style.display='none';
