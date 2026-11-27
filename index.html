@@ -218,7 +218,11 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
   <input id="resCap" type="number" step="0.5" inputmode="decimal" onchange="majReglRes()">
   <label>Alerter quand il reste (kg)</label>
   <input id="resSeuil" type="number" step="0.5" inputmode="decimal" onchange="majReglRes()">
-  <div class="small" style="margin-top:6px">MCZ Halo Air 8 M1 : réservoir de 27 litres, soit environ 18 kg. À chaque rechargement, l'appli considère le réservoir plein, puis retire heures de marche × kg/h.</div>
+  <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:normal">
+   <input id="resAuto" type="checkbox" onchange="d.reservoir.rappelAuto=this.checked;sauver();" style="width:24px;height:24px;margin:0;padding:0;flex:none;accent-color:var(--o)">
+   Rappel Calendrier automatique après chaque recharge
+  </label>
+  <div class="small" style="margin-top:6px">MCZ Halo Air 8 M1 : réservoir de 27 litres, soit environ 18 kg. À chaque rechargement, l'appli considère le réservoir plein, puis retire heures de marche × kg/h. Avec le rappel automatique, l'iPhone propose d'ajouter l'alerte au Calendrier juste après chaque recharge (un appui sur « Ajouter » suffit).</div>
  </div>
  <div class="card">
   <h2>Saisons de chauffe</h2>
@@ -262,7 +266,7 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
 </div>
 
 <script>
-const VERSION='2026-11-27.2';
+const VERSION='2026-11-27.4';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -300,7 +304,7 @@ function normaliser(){
  // Réservoir du poêle (rempli à fond à chaque rechargement)
  const rv=(d.reservoir&&typeof d.reservoir==='object')?d.reservoir:{};
  const rc=num(rv.capacite),rs=num(rv.seuil);
- d.reservoir={capacite:rc>0?rc:18,seuil:rs!=null&&rs>=0?rs:3};
+ d.reservoir={capacite:rc>0?rc:18,seuil:rs!=null&&rs>=0?rs:3,rappelAuto:rv.rappelAuto!==false};
  // Horaires de marche du poêle (minutes depuis minuit)
  const hd=(d.horaires&&typeof d.horaires==='object')?d.horaires:{};
  const ok=(p,def)=>Array.isArray(p)&&p.every(x=>Array.isArray(x)&&x.length===2&&isFinite(x[0])&&isFinite(x[1]))?p:def;
@@ -368,6 +372,7 @@ function recharger(){
   trierParDate(d.recharges);
   recSalon.value='';recNb.value=1;recQuand.value='';majTotalRec();majBoutonRec();
   sauver();
+  if(d.reservoir.rappelAuto&&d.recharges[d.recharges.length-1].t===h.toISOString()){const e=etatReservoir();if(e&&e.hAlerte&&e.hAlerte>new Date())ajouterRappel();}
   const kgAch=d.achats.reduce((a,x)=>a+x.nb*x.poids,0),kgUt=d.recharges.reduce((a,x)=>a+x.kg,0);
   confirmRec.textContent='✓ '+nb+' récipient'+(nb>1?'s':'')+' = '+String(kg).replace('.',',')+' kg enregistré '+(passe?'le '+h.toLocaleDateString('fr-FR')+' ':'')+'à '+p2(h.getHours())+':'+p2(h.getMinutes())+' · reste '+Math.max(0,kgAch-kgUt).toFixed(1).replace('.',',')+' kg';
  }catch(e){alert('Erreur au rechargement : '+e.message);}
@@ -952,14 +957,22 @@ function heureApres(t0,mn){
  return null;
 }
 // Réservoir plein à chaque recharge : kg versés = consommation depuis la recharge précédente
+// Moyenne glissante : intervalles entre recharges commencés dans les 14 derniers jours (suit la météo),
+// sinon tout l'historique s'il n'y a pas assez de données récentes
+const JOURS_MOYENNE=14;
 function tauxReservoir(){
  const R=d.recharges.filter(r=>cleJour(new Date(r.t))>=d.horaires.depuis);
- let kg=0,mn=0;
+ const limite=Date.now()-JOURS_MOYENNE*86400000;
+ let kg=0,mn=0,kgT=0,mnT=0;
  for(let i=1;i<R.length;i++){
   const m=minutesEntre(new Date(R[i-1].t),new Date(R[i].t));
-  if(m>0){kg+=R[i].kg;mn+=m;}
+  if(m<=0)continue;
+  kgT+=R[i].kg;mnT+=m;
+  if(new Date(R[i-1].t).getTime()>=limite){kg+=R[i].kg;mn+=m;}
  }
- return mn>=180?{taux:kg/(mn/60),fiable:mn>=600}:null;
+ if(mn>=180)return {taux:kg/(mn/60),fiable:mn>=600,periode:JOURS_MOYENNE+' derniers jours'};
+ if(mnT>=180)return {taux:kgT/(mnT/60),fiable:mnT>=600,periode:'tout l\'historique'};
+ return null;
 }
 // Pas de rechargement possible la nuit : une alerte prévue entre 22h et 6h est avancée à 22h la veille
 const NUIT_DEBUT=22*60,NUIT_FIN=6*60;
@@ -995,6 +1008,7 @@ const fmtKg=v=>v.toFixed(1).replace('.',',');
 function majReservoir(){
  if(document.activeElement!==resCap)resCap.value=d.reservoir.capacite;
  if(document.activeElement!==resSeuil)resSeuil.value=d.reservoir.seuil;
+ resAuto.checked=d.reservoir.rappelAuto;
  const e=etatReservoir();
  carteRes.style.display='';
  if(!e){
@@ -1017,7 +1031,7 @@ function majReservoir(){
  if(e.hSeuil)l.push('Plus que '+fmtKg(e.S)+' kg '+fmtQuand(e.hSeuil)+(avance?' (la nuit) → alerte avancée '+fmtQuand(hA):''));
  if(e.hVide)l.push('Vide '+fmtQuand(e.hVide));
  else if(e.reste>0)l.push('Pas de marche prévue dans les 30 prochains jours');
- l.push('Rempli le '+e.t0.toLocaleDateString('fr-FR')+' à '+e.t0.getHours()+'h'+p2(e.t0.getMinutes())+' · '+e.taux.toFixed(2).replace('.',',')+' kg/h'+(e.tx?(e.tx.fiable?'':' (encore peu de données)'):' (valeur provisoire, il faut au moins 2 recharges)'));
+ l.push('Rempli le '+e.t0.toLocaleDateString('fr-FR')+' à '+e.t0.getHours()+'h'+p2(e.t0.getMinutes())+' · '+e.taux.toFixed(2).replace('.',',')+' kg/h'+(e.tx?' (moyenne sur '+e.tx.periode+(e.tx.fiable?'':', encore peu de données')+')':' (valeur provisoire, il faut au moins 2 recharges)'));
  detailRes.innerHTML=l.join('<br>');
  btnRappel.style.display=hA&&hA>now?'':'none';
 }
@@ -1025,7 +1039,7 @@ function majReglRes(){
  const c=num(resCap.value),s=num(resSeuil.value);
  if(!(c>0)){alert('Capacité invalide.');resCap.value=d.reservoir.capacite;return;}
  if(s==null||s<0||s>=c){alert('Seuil d\'alerte invalide (entre 0 et la capacité).');resSeuil.value=d.reservoir.seuil;return;}
- d.reservoir={capacite:c,seuil:s};
+ d.reservoir.capacite=c;d.reservoir.seuil=s;
  sauver();
 }
 // Événement Calendrier avec alarme à l'heure où il restera le seuil
@@ -1036,7 +1050,7 @@ function ajouterRappel(){
  const deb=new Date(Math.max(e.hAlerte.getTime(),Date.now()+60000)),avance=e.hAlerte<e.hSeuil;
  const fin=new Date(deb.getTime()+15*60000);
  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Granules//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH',
-  'BEGIN:VEVENT','UID:granules-'+f(e.t0)+'@granules','DTSTAMP:'+f(new Date()),'DTSTART:'+f(deb),'DTEND:'+f(fin),
+  'BEGIN:VEVENT','UID:granules-reservoir@granules','SEQUENCE:'+Math.floor(Date.now()/1000),'DTSTAMP:'+f(new Date()),'DTSTART:'+f(deb),'DTEND:'+f(fin),
   'SUMMARY:'+(avance?'🔥 Recharger le poêle avant la nuit':'🔥 Poêle presque vide (≈ '+fmtKg(e.S)+' kg)'),
   'DESCRIPTION:'+(avance?'Il ne restera que '+fmtKg(e.S)+' kg '+fmtQuand(e.hSeuil)+' (pendant la nuit)':'Il reste environ '+fmtKg(e.S)+' kg dans le réservoir')+'\\, pense à recharger.',
   'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:Poêle presque vide','TRIGGER:PT0M','END:VALARM',
