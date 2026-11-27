@@ -83,6 +83,7 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
  <div class="card" id="carteRes" style="display:none">
   <h2>Réservoir du poêle</h2>
   <div class="alerte" id="alerteRes" style="display:none"></div>
+  <button id="majRappel" onclick="ajouterRappel()" style="display:none;width:100%;text-align:left;font-size:15px;background:#e08a00;margin:0 0 10px"></button>
   <div class="jauge"><div id="jaugeRes"></div></div>
   <div id="niveauRes" style="font-size:20px;font-weight:bold;margin-top:8px"></div>
   <div class="small" id="detailRes"></div>
@@ -240,6 +241,15 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
  <div class="small" style="text-align:center">Version <span id="version"></span></div>
 </div>
 
+<div id="popRappel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:30;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+ <div class="card" style="width:100%;max-width:420px;margin:0;border-top:6px solid #e08a00">
+  <h2>📅 Rappel à mettre à jour</h2>
+  <div id="popTexte" style="font-size:17px;line-height:1.4;margin-bottom:12px"></div>
+  <button class="gros" id="popOk" onclick="fermerPop(true)">📅 Mettre à jour le rappel</button>
+  <button class="sec" id="popPlusTard" onclick="fermerPop(false)" style="width:100%;margin:6px 0 0">Plus tard</button>
+ </div>
+</div>
+
 <div id="editeur" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:20;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
  <div class="card" style="width:100%;max-width:420px;margin:0">
   <h2 id="edTitre"></h2>
@@ -266,7 +276,7 @@ Granulés<img src="poele.jpg" alt="Poêle MCZ Halo Air" width="35" height="46" s
 </div>
 
 <script>
-const VERSION='2026-11-27.4';
+const VERSION='2026-11-27.7';
 const CLE='granules_v1';
 function p2(n){return String(n).padStart(2,'0');}
 let d=JSON.parse(localStorage.getItem(CLE)||'null')||{recharges:[],achats:[],saisons:[]};
@@ -304,7 +314,8 @@ function normaliser(){
  // Réservoir du poêle (rempli à fond à chaque rechargement)
  const rv=(d.reservoir&&typeof d.reservoir==='object')?d.reservoir:{};
  const rc=num(rv.capacite),rs=num(rv.seuil);
- d.reservoir={capacite:rc>0?rc:18,seuil:rs!=null&&rs>=0?rs:3,rappelAuto:rv.rappelAuto!==false};
+ d.reservoir={capacite:rc>0?rc:18,seuil:rs!=null&&rs>=0?rs:3,rappelAuto:rv.rappelAuto!==false,
+  rappel:rv.rappel&&rv.rappel.t&&rv.rappel.recharge?{t:rv.rappel.t,recharge:rv.rappel.recharge}:null};
  // Horaires de marche du poêle (minutes depuis minuit)
  const hd=(d.horaires&&typeof d.horaires==='object')?d.horaires:{};
  const ok=(p,def)=>Array.isArray(p)&&p.every(x=>Array.isArray(x)&&x.length===2&&isFinite(x[0])&&isFinite(x[1]))?p:def;
@@ -911,6 +922,7 @@ function onglet(n){
   document.getElementById('page-'+x).style.display=(x===n)?'block':'none';
   document.getElementById('tab-'+x).classList.toggle('on',x===n);
  });
+ if(n==='accueil')majReservoir();
  try{localStorage.setItem('granules_onglet',n);}catch(e){}
  window.scrollTo(0,0);
 }
@@ -1034,6 +1046,29 @@ function majReservoir(){
  l.push('Rempli le '+e.t0.toLocaleDateString('fr-FR')+' à '+e.t0.getHours()+'h'+p2(e.t0.getMinutes())+' · '+e.taux.toFixed(2).replace('.',',')+' kg/h'+(e.tx?' (moyenne sur '+e.tx.periode+(e.tx.fiable?'':', encore peu de données')+')':' (valeur provisoire, il faut au moins 2 recharges)'));
  detailRes.innerHTML=l.join('<br>');
  btnRappel.style.display=hA&&hA>now?'':'none';
+ // Rappel déjà dans le Calendrier pour ce remplissage, mais l'heure prévue a changé (horaires, kg/h…)
+ const rp=d.reservoir.rappel,memeRemplissage=rp&&rp.recharge===e.t0.toISOString();
+ let msg='';
+ if(memeRemplissage&&new Date(rp.t)>now){
+  const ancien=new Date(rp.t);
+  if(hA&&hA>now&&Math.abs(hA-ancien)>15*60000)msg='🔄 L\'alerte est maintenant prévue '+fmtQuand(hA)+' (au lieu de '+fmtQuand(ancien)+'). Appuie pour mettre à jour le rappel du Calendrier.';
+  else if(!hA&&e.reste>e.S)msg='🔄 Plus d\'alerte prévue dans les 30 jours : le rappel du Calendrier ('+fmtQuand(ancien)+') n\'est plus valable, tu peux le supprimer.';
+ }
+ majRappel.style.display=msg?'':'none';
+ majRappel.textContent=msg;
+ majRappel.disabled=!hA;
+ // Pop-up quel que soit l'onglet, dès que l'heure change (après « Plus tard », seulement si elle bouge encore de plus de 15 min)
+ const dejaVue=popVue&&popVue.rp===(rp&&rp.t)&&(hA?popVue.h!=null&&Math.abs(hA-popVue.h)<=15*60000:popVue.h==null);
+ const popOuverte=popRappel.style.display!=='none';
+ if(!msg&&popOuverte)popRappel.style.display='none';
+ if(msg&&(!dejaVue||popOuverte)){
+  popVue={rp:rp.t,h:hA?hA.getTime():null};
+  try{localStorage.setItem('granules_pop',JSON.stringify(popVue));}catch(x){}
+  popTexte.textContent=hA?'L\'alerte « poêle presque vide » est maintenant prévue '+fmtQuand(hA)+', au lieu de '+fmtQuand(new Date(rp.t))+' dans ton Calendrier.':'Plus aucune alerte n\'est prévue dans les 30 prochains jours : le rappel du Calendrier ('+fmtQuand(new Date(rp.t))+') n\'est plus valable, tu peux le supprimer.';
+  popOk.style.display=hA?'':'none';
+  popPlusTard.textContent=hA?'Plus tard':'OK';
+  popRappel.style.display='flex';
+ }
 }
 function majReglRes(){
  const c=num(resCap.value),s=num(resSeuil.value);
@@ -1059,6 +1094,13 @@ function ajouterRappel(){
  a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));
  a.download='rappel-poele.ics';
  a.click();
+ d.reservoir.rappel={t:deb.toISOString(),recharge:e.t0.toISOString()};
+ sauver();
+}
+let popVue=(function(){try{return JSON.parse(localStorage.getItem('granules_pop'))||null;}catch(e){return null;}})();
+function fermerPop(maj){
+ popRappel.style.display='none';
+ if(maj)ajouterRappel();
 }
 setInterval(majReservoir,60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)majReservoir();});
